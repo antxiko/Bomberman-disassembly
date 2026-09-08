@@ -484,6 +484,51 @@ class TestLaExplosion(unittest.TestCase):
         self.assertNotIn(",", salto)
 
 
+class TestLosPremios(unittest.TestCase):
+    """Lo que cambia con la fase es el PREMIO, y lo dicen los destinos."""
+
+    def punteros(self):
+        p = trozo(0x419B, 32)
+        return [p[2 * i] | (p[2 * i + 1] << 8) for i in range(16)]
+
+    def test_los_dieciseis_caen_en_el_ultimo_bloque(self):
+        for d in self.punteros():
+            self.assertTrue(0x5E38 <= d < 0x6000,
+                            "0x%04X se sale del bloque de premios" % d)
+        self.assertEqual(min(self.punteros()), 0x5E38,
+                         "la mas baja tiene que ser el principio del bloque")
+
+    def test_las_pares_definen_la_mitad_de_arriba_y_las_impares_la_de_abajo(self):
+        """Cada bloque trae dos casillas, y el destino dice cuales: 0x0050 es
+        la casilla 0x0A y 0x00D0 la 0x1A. Las cuatro que pinta 0x45F6."""
+        for i, d in enumerate(self.punteros()):
+            destino = trozo(d, 2)
+            destino = destino[0] | (destino[1] << 8)
+            cuantas = trozo(d + 2, 1)[0]
+            self.assertEqual(cuantas, 2, "el bloque 0x%04X no trae dos" % d)
+            self.assertEqual(destino, 0x00D0 if i % 2 else 0x0050,
+                             "el bloque %d va a 0x%04X" % (i, destino))
+        # y esas son las casillas del premio: 0x45F6 pinta 0x0A, 0x0B, 0x1A y 0x1B
+        self.assertEqual(0x0050 // 8, 0x0A)
+        self.assertEqual(0x00D0 // 8, 0x1A)
+        self.assertEqual(instruccion(0x4604), "ld a,00ah")
+
+    def test_ocho_premios_enteros(self):
+        """0x4167 carga una pareja consecutiva, o sea una mitad de arriba y
+        una de abajo. Dieciseis bloques son ocho premios."""
+        self.assertEqual(instruccion(0x417D), "and 00ch")
+        self.assertEqual(instruccion(0x4171), "ld hl,0419bh")
+        self.assertEqual(instruccion(0x4197), "ld hl,041abh")
+        self.assertEqual(len(self.punteros()) // 2, 8)
+
+    def test_la_mitad_de_la_tabla_la_elige_la_misma_mascara_que_la_bomba(self):
+        """`and 003h` sobre la fase: la misma condicion que deja de pedir el
+        disparo. Asi que el premio de la fase de bomba automatica es otro."""
+        self.assertEqual(instruccion(0x416F), "and 003h")
+        self.assertEqual(instruccion(0x4925), "and 003h")
+        self.assertEqual(instruccion(0x4178), "and 0fch")
+
+
 class TestLaPartida(unittest.TestCase):
     """Las cuentas del juego, que se publican y por tanto se comprueban."""
 

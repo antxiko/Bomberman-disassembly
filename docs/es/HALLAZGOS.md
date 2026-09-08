@@ -63,6 +63,30 @@ bomba A: ladrillo a 1 casilla  por la abajo     en ( 4, 1) -> CAE
 bomba B: ladrillo a 2 casillas por la izquierda en (11, 0) -> SIGUE EN PIE
 ```
 
+## Ocho premios, y el de la fase de bomba automática no es el mismo
+
+Debajo del primer ladrillo que reparte `siembra_la_fase` hay un premio, y no
+siempre el mismo. Las dieciséis palabras de la tabla de `0x419B` apuntan a
+bloques de gráficos de **dos casillas**, y los destinos lo dicen todo: las
+pares van a `0x0050` —la casilla `0x0A`— y las impares a `0x00D0` —la `0x1A`—.
+Esas cuatro casillas son exactamente las que pinta `pinta_el_premio`
+(`0x45F6`).
+
+`0x4167` carga una **pareja** de palabras consecutivas, o sea una mitad de
+arriba y una de abajo, así que los dieciséis bloques son **ocho premios
+enteros**: un helicóptero, un saco de dinero con el símbolo del dólar, un
+velocípedo, un carruaje, una taza humeante, un instrumento de cuerda y otros
+dos. El de las tres primeras fases, un cofre, viene en el bloque grande de la
+partida y no está en la tabla.
+
+Y cuál toca lo deciden dos máscaras sobre el número de fase: `and 003h` elige
+la mitad de la tabla —**la de abajo en las fases múltiplos de cuatro**, que son
+las de bomba automática— y `and 00Ch` cuál de las cuatro parejas. O sea que el
+premio de la fase de bomba automática **no es el mismo** que el de las tres que
+van detrás.
+
+![Los ocho premios](../imagenes/premios.png)
+
 ## El bicho se pone rojo cuando va a por ti
 
 El byte `+3` de la ficha del enemigo hace dos cosas: elige el dibujo

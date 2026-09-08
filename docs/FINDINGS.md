@@ -62,6 +62,27 @@ bomb A: brick 1 cell  below         in ( 4, 1) -> FALLS
 bomb B: brick 2 cells to the left   in (11, 0) -> STILL STANDING
 ```
 
+## Eight prizes, and the auto-bomb stage does not get the same one
+
+Under the first brick `siembra_la_fase` deals there is a prize, and not always
+the same one. The sixteen words of the table at `0x419B` point at **two-tile**
+graphics blocks, and the destinations say it all: the even ones go to `0x0050`
+— tile `0x0A` — and the odd ones to `0x00D0` — tile `0x1A`. Those four tiles
+are exactly the ones `pinta_el_premio` (`0x45F6`) paints.
+
+`0x4167` loads a **pair** of consecutive words, that is one top half and one
+bottom half, so the sixteen blocks are **eight whole prizes**: a helicopter, a
+money bag with a dollar sign, a penny-farthing, a carriage, a steaming cup, a
+stringed instrument and two more. The one for the first three stages, a chest,
+comes in the game's big block and is not in the table.
+
+And which one it is comes from two masks on the stage number: `and 003h` picks
+the half of the table — **the bottom half on multiples of four**, the auto-bomb
+stages — and `and 00Ch` which of the four pairs. So the auto-bomb stage's prize
+**is not the same** as the three that follow it.
+
+![The eight prizes](imagenes/premios.png)
+
 ## The monster turns red when it is coming for you
 
 Byte `+3` of the enemy's record does two things: it picks the drawing

@@ -32,7 +32,7 @@ Encadena cuatro pasos, y el orden importa:
 | `make listado` | traza el flujo desde INIT y genera `src/bomberman.asm` |
 | `make verify` | reensambla con pasmo y compara el sha256 con el original |
 | `make sanity` | comprueba que ni un byte del cartucho se queda sin explicar |
-| `make test` | las 50 comprobaciones sobre el listado y sobre lo que afirma |
+| `make test` | las 64 comprobaciones sobre el listado y sobre lo que afirma |
 
 `make verify` es el que decide si el desensamblado es fiable: si los 8192
 bytes reensamblados no dan el mismo sha256, el listado miente en algún sitio.
@@ -54,7 +54,7 @@ src/bomberman.notes     los comentarios, anclados a dirección
 src/bomberman.entries   los puntos de entrada que el trazador no puede deducir
 src/bomberman.nocode    las zonas que NO son código, con su razón
 tools/                  el trazador, el generador y las comprobaciones
-tests/                  50 comprobaciones que no necesitan el cartucho
+tests/                  64 comprobaciones que no necesitan el cartucho
 docs/                   esta web, en los dos idiomas
 ```
 

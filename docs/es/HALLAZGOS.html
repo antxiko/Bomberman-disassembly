@@ -104,6 +104,11 @@ audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
 <pre><code>bomba A: ladrillo a 1 casilla  por la derecha   en ( 5, 0) -&gt; CAE
 bomba A: ladrillo a 1 casilla  por la abajo     en ( 4, 1) -&gt; CAE
 bomba B: ladrillo a 2 casillas por la izquierda en (11, 0) -&gt; SIGUE EN PIE</code></pre>
+<h2 id="ocho-premios-y-el-de-la-fase-de-bomba-automatica-no-es-el-mismo">Ocho premios, y el de la fase de bomba automática no es el mismo</h2>
+<p>Debajo del primer ladrillo que reparte <code>siembra_la_fase</code> hay un premio, y no siempre el mismo. Las dieciséis palabras de la tabla de <code>0x419B</code> apuntan a bloques de gráficos de <b>dos casillas</b>, y los destinos lo dicen todo: las pares van a <code>0x0050</code> —la casilla <code>0x0A</code>— y las impares a <code>0x00D0</code> —la <code>0x1A</code>—. Esas cuatro casillas son exactamente las que pinta <code>pinta_el_premio</code> (<code>0x45F6</code>).</p>
+<p><code>0x4167</code> carga una <b>pareja</b> de palabras consecutivas, o sea una mitad de arriba y una de abajo, así que los dieciséis bloques son <b>ocho premios enteros</b>: un helicóptero, un saco de dinero con el símbolo del dólar, un velocípedo, un carruaje, una taza humeante, un instrumento de cuerda y otros dos. El de las tres primeras fases, un cofre, viene en el bloque grande de la partida y no está en la tabla.</p>
+<p>Y cuál toca lo deciden dos máscaras sobre el número de fase: <code>and 003h</code> elige la mitad de la tabla —<b>la de abajo en las fases múltiplos de cuatro</b>, que son las de bomba automática— y <code>and 00Ch</code> cuál de las cuatro parejas. O sea que el premio de la fase de bomba automática <b>no es el mismo</b> que el de las tres que van detrás.</p>
+<p><img src="../imagenes/premios.png?v=407917ed" alt="Los ocho premios"></p>
 <h2 id="el-bicho-se-pone-rojo-cuando-va-a-por-ti">El bicho se pone rojo cuando va a por ti</h2>
 <p>El byte <code>+3</code> de la ficha del enemigo hace dos cosas: elige el dibujo (<code>0xC0 + cuadro*4</code>) y decide el comportamiento. Cuando vale cero, el enemigo <b>persigue al bombero</b> (<code>0x477B</code>); el resto del tiempo anda a lo suyo y cambia de idea al azar.</p>
 <p>Y cero es justo el cuadro rojo. Los otros tres son morados.</p>

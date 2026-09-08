@@ -104,6 +104,11 @@ audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
 <pre><code>bomb A: brick 1 cell  to the right in ( 5, 0) -&gt; FALLS
 bomb A: brick 1 cell  below         in ( 4, 1) -&gt; FALLS
 bomb B: brick 2 cells to the left   in (11, 0) -&gt; STILL STANDING</code></pre>
+<h2 id="eight-prizes-and-the-auto-bomb-stage-does-not-get-the-same-one">Eight prizes, and the auto-bomb stage does not get the same one</h2>
+<p>Under the first brick <code>siembra_la_fase</code> deals there is a prize, and not always the same one. The sixteen words of the table at <code>0x419B</code> point at <b>two-tile</b> graphics blocks, and the destinations say it all: the even ones go to <code>0x0050</code> — tile <code>0x0A</code> — and the odd ones to <code>0x00D0</code> — tile <code>0x1A</code>. Those four tiles are exactly the ones <code>pinta_el_premio</code> (<code>0x45F6</code>) paints.</p>
+<p><code>0x4167</code> loads a <b>pair</b> of consecutive words, that is one top half and one bottom half, so the sixteen blocks are <b>eight whole prizes</b>: a helicopter, a money bag with a dollar sign, a penny-farthing, a carriage, a steaming cup, a stringed instrument and two more. The one for the first three stages, a chest, comes in the game&#x27;s big block and is not in the table.</p>
+<p>And which one it is comes from two masks on the stage number: <code>and 003h</code> picks the half of the table — <b>the bottom half on multiples of four</b>, the auto-bomb stages — and <code>and 00Ch</code> which of the four pairs. So the auto-bomb stage&#x27;s prize <b>is not the same</b> as the three that follow it.</p>
+<p><img src="imagenes/premios.png?v=407917ed" alt="The eight prizes"></p>
 <h2 id="the-monster-turns-red-when-it-is-coming-for-you">The monster turns red when it is coming for you</h2>
 <p>Byte <code>+3</code> of the enemy&#x27;s record does two things: it picks the drawing (<code>0xC0 + frame*4</code>) and it decides the behaviour. When it is zero, the enemy <b>chases the bomber</b> (<code>0x477B</code>); the rest of the time it wanders and changes its mind at random.</p>
 <p>And zero is precisely the red frame. The other three are purple.</p>

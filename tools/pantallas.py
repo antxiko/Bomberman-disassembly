@@ -353,57 +353,72 @@ def recorta(px, fila, col, alto, ancho):
     return [f[col * 8:(col + ancho) * 8] for f in px[fila * 8:(fila + alto) * 8]]
 
 
-def hoja_de_animacion(rom, v0, cols=4, sep=2):
-    """Los dieciseis dibujos que 0x4171 reparte desde la tabla de 0x419B.
+def hoja_de_animacion(rom, v0, cols=8, sep=2):
+    """LOS OCHO PREMIOS que 0x4167 va turnando desde la tabla de 0x419B.
 
-    Cada uno es un bloque del mismo formato que los demas y REDEFINE unas
-    casillas concretas: el destino dice en cual empieza -entre ocho, que es lo
-    que ocupa una- y la cuenta cuantas son. Asi que en vez de buscarlos en la
-    pantalla, que es donde no estan hasta que el juego los pone, se cargan y
-    se dibujan LAS CASILLAS QUE CADA UNO DEFINE, que es lo que el bloque dice
-    de si mismo.
+    Cada una de las dieciseis palabras de la tabla apunta a un bloque de dos
+    casillas, y los destinos lo dicen todo: las pares van a 0x0050 -o sea la
+    casilla 0x0A- y las impares a 0x00D0 -la 0x1A-. Esas cuatro casillas son
+    justo las que pinta `pinta_el_premio` (0x45F6). Asi que lo que cambia cada
+    cuatro fases NO es el bicho: es el PREMIO que hay debajo de un ladrillo.
+
+    0x4167 carga una PAREJA de palabras consecutivas, o sea una mitad de
+    arriba y una de abajo, y por eso los dieciseis bloques son ocho premios
+    enteros. Aqui se montan igual: se carga la pareja sobre la hoja de la
+    partida y se dibujan las cuatro casillas resultantes.
     """
-    trozos = []
-    for i in range(16):
-        p = rom.w(0x419B + 2 * i)
+    premios = []
+    for k in range(8):
         v = V.Vram()
-        V.carga_los_graficos(rom, v, 0x514C)
-        V.carga_los_graficos(rom, v, p)
-        primera = rom.w(p) // 8
-        n = rom.b(p + 2) or 256
-        ancho = min(n, 8)
-        alto = (n + ancho - 1) // ancho
-        t = [[(0x18, 0x18, 0x20)] * (ancho * 8) for _ in range(alto * 8)]
-        for k in range(n):
-            d = V.casilla(v, (primera + k) & 0xFF, 0)
-            ox, oy = (k % ancho) * 8, (k // ancho) * 8
-            for y in range(8):
-                t[oy + y][ox:ox + 8] = d[y]
-        trozos.append(t)
-    alto = max(len(t) for t in trozos)
-    ancho = max(len(t[0]) for t in trozos)
-    filas = (len(trozos) + cols - 1) // cols
+        for p in (0x514C, 0x5B26, 0x5B7C):
+            V.carga_los_graficos(rom, v, p)
+        for j in (0, 1):                        # 0x4183 y 0x418D: la pareja
+            V.carga_los_graficos(rom, v, rom.w(0x419B + 4 * k + 2 * j))
+        premios.append(v)
+    ancho, alto = 16, 16
+    filas = (len(premios) + cols - 1) // cols
     cw, ch = ancho + sep, alto + sep
     lienzo = [[(0x18, 0x18, 0x20)] * (cols * cw + sep)
               for _ in range(filas * ch + sep)]
-    for k, t in enumerate(trozos):
+    for k, v in enumerate(premios):
         ox, oy = sep + (k % cols) * cw, sep + (k // cols) * ch
-        for y in range(len(t)):
-            lienzo[oy + y][ox:ox + len(t[y])] = t[y]
+        for dy, dx, t in ((0, 0, 0x0A), (0, 1, 0x0B), (1, 0, 0x1A), (1, 1, 0x1B)):
+            d = V.casilla(v, t, 0)
+            for y in range(8):
+                lienzo[oy + dy * 8 + y][ox + dx * 8:ox + dx * 8 + 8] = d[y]
     return lienzo
 
 
 def hoja_de_bloques(v, casillas, cols=8, sep=2, banda=0):
     """Una fila de dibujos de DOS POR DOS, que es como esta hecho todo lo que
-    se mueve: cada uno son las casillas n, n+1, n+0x10 y n+0x11."""
-    n = len(casillas)
-    filas = (n + cols - 1) // cols
+    se mueve.
+
+    Y hay DOS formas de hacer uno, que no se pueden confundir:
+
+      `pinta_cuatro_casillas` (0x4B7B) pinta n, n+1, n+0x10 y n+0x11, o sea
+      cuatro casillas consecutivas de la hoja. Asi se pintan el bombero, el
+      bicho, la bomba, la llama, el premio y la puerta.
+
+      `pinta_cuatro_casillas_iguales` (0x4B8C) pinta la MISMA cuatro veces.
+      Asi se pintan el ladrillo, el muro y el pilar, que son un patron que
+      tesela consigo mismo.
+
+    Dibujar un ladrillo como si fuera lo primero saca al lado suyo la casilla
+    siguiente de la hoja, que es otra cosa: en el muro salian las letras H, D,
+    F, A, M e I. Por eso cada entrada dice cual de las dos es, con un
+    `(casilla, repetida)`.
+    """
+    entradas = [c if isinstance(c, tuple) else (c, False) for c in casillas]
+    filas = (len(entradas) + cols - 1) // cols
     w, h = cols * (16 + sep) + sep, filas * (16 + sep) + sep
     lienzo = [[(0x18, 0x18, 0x20)] * w for _ in range(h)]
-    for k, base in enumerate(casillas):
+    for k, (base, repetida) in enumerate(entradas):
         ox, oy = sep + (k % cols) * (16 + sep), sep + (k // cols) * (16 + sep)
-        for dy, dx, t in ((0, 0, base), (0, 1, base + 1),
-                          (1, 0, base + 0x10), (1, 1, base + 0x11)):
+        cuatro = ((0, 0, base), (0, 1, base), (1, 0, base), (1, 1, base)) \
+            if repetida else \
+            ((0, 0, base), (0, 1, base + 1),
+             (1, 0, base + 0x10), (1, 1, base + 0x11))
+        for dy, dx, t in cuatro:
             d = V.casilla(v, t & 0xFF, banda)
             for y in range(8):
                 lienzo[oy + dy * 8 + y][ox + dx * 8:ox + dx * 8 + 8] = d[y]
@@ -426,7 +441,7 @@ def main():
 
     guarda(hoja_de_casillas(v, 0, 256), os.path.join(out, "casillas.png"), 3)
     guarda(hoja_de_casillas(v, 0x20, 62), os.path.join(out, "fuente.png"), 3)
-    guarda(hoja_de_animacion(rom, v), os.path.join(out, "animacion.png"))
+    guarda(hoja_de_animacion(rom, v), os.path.join(out, "premios.png"), 4)
 
     p = partida(rom)
     guarda(V.pinta_pantalla(p), os.path.join(out, "partida.png"))
@@ -448,7 +463,12 @@ def main():
            os.path.join(out, "bombas.png"), 4)
     guarda(hoja_de_bloques(p, [2 * e + 0xD6 for e in range(5, 13)]),
            os.path.join(out, "llamas.png"), 4)
-    guarda(hoja_de_bloques(p, [0x80 + 2 * k for k in range(4)] + [0x88, 0x0A, 0x0E]),
+    # OJO: el ladrillo, el muro y el pilar los pinta 0x4B8C repitiendo la
+    # MISMA casilla cuatro veces; el premio y la puerta, 0x4B7B con cuatro
+    # consecutivas. Por eso van marcados.
+    guarda(hoja_de_bloques(p, [(0x80 + k, True) for k in range(8)]
+                              + [(0x88, True), (0x89, True), 0x0A, 0x0E],
+                           cols=12),
            os.path.join(out, "casillas_del_tablero.png"), 4)
 
 

@@ -32,13 +32,13 @@ They run and do nothing; read as text, in the cartridge's own font, they say
 they could be a leftover from an earlier build, a string someone started and
 never finished, or plain coincidence. **We do not know what they were.**
 
-## What really differs between the sixteen stage drawings
+## What two of the eight prizes are
 
-`0x4167` loads two blocks from the table at `0x419B` every four stages, and
-each block redefines two tiles. They are drawn — they are on the front page —
-and it is clear that what changes is the monster's face, but **we have not
-played far enough to say whether the behaviour changes too**. Not according to
-the code: the table only loads graphics.
+All eight are drawn from the ROM and six are unmistakable: a helicopter, a
+money bag with a dollar sign, a penny-farthing, a carriage, a steaming cup and
+a stringed instrument. The other two — one red and vertical with white gaps,
+and one white, diamond-shaped with a tail — **we do not know what they are**.
+They are 16 by 16 pixels in two colours; there may be no answer.
 
 ## Whether the dead `cp 089h` at `0x4AC9` ever ran
 

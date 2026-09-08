@@ -28,7 +28,7 @@ RUTINAS = 200
 INSTRUCCIONES = 1836
 COMENTARIOS = 921
 DENSIDAD = 50.2
-TESTS = 60
+TESTS = 64
 
 
 def mil(n, idioma):
@@ -163,6 +163,21 @@ HALLAZGOS = {
          "lista, una con ladrillo pegado y otra con el ladrillo a dos "
          "casillas. Los dos de la primera <b>caen</b>; el de la segunda "
          "<b>sigue en pie</b>.</p>"),
+        ("Ocho premios, y el de la fase de bomba automatica no es el mismo",
+         "<p>Debajo del primer ladrillo que se reparte hay un premio, y no "
+         "siempre el mismo. Las dieciséis palabras de la tabla de 0x419B "
+         "apuntan a bloques de <b>dos casillas</b>, y los destinos lo dicen "
+         "todo: las pares van a la casilla <code>0x0A</code> y las impares a "
+         "la <code>0x1A</code>, que son exactamente las cuatro que pinta "
+         "<code>pinta_el_premio</code>.</p>"
+         "<p>0x4167 carga una <b>pareja</b> de palabras consecutivas —una "
+         "mitad de arriba y una de abajo—, así que los dieciséis bloques son "
+         "<b>ocho premios enteros</b>: un helicóptero, un saco de dinero, un "
+         "velocípedo, un carruaje, una taza humeante, un instrumento de cuerda "
+         "y otros dos. Y cuál toca lo eligen dos máscaras sobre el número de "
+         "fase, una de ellas la misma <code>and 003h</code> de la bomba "
+         "automática: el premio de esa fase <b>no es el de las tres que van "
+         "detrás</b>.</p>"),
         ("El bicho se pone rojo cuando va a por ti",
          "<p>El mismo byte de la ficha del enemigo hace dos cosas: elige el "
          "dibujo (<code>0xC0 + cuadro*4</code>) y decide el comportamiento. "
@@ -263,6 +278,20 @@ HALLAZGOS = {
          "the list, one with a brick right next to it and one with the brick "
          "two cells away. Both of the first one's <b>fall</b>; the second "
          "one's <b>is still standing</b>.</p>"),
+        ("Eight prizes, and the auto-bomb stage does not get the same one",
+         "<p>Under the first brick dealt there is a prize, and not always the "
+         "same one. The sixteen words of the table at 0x419B point at "
+         "<b>two-tile</b> blocks, and the destinations say it all: the even "
+         "ones go to tile <code>0x0A</code> and the odd ones to "
+         "<code>0x1A</code>, which are exactly the four that "
+         "<code>pinta_el_premio</code> paints.</p>"
+         "<p>0x4167 loads a <b>pair</b> of consecutive words — one top half "
+         "and one bottom half — so the sixteen blocks are <b>eight whole "
+         "prizes</b>: a helicopter, a money bag, a penny-farthing, a carriage, "
+         "a steaming cup, a stringed instrument and two more. And which one it "
+         "is comes from two masks on the stage number, one of them the very "
+         "same <code>and 003h</code> as the auto-bomb mode: that stage's prize "
+         "<b>is not the one the following three get</b>.</p>"),
         ("The monster turns red when it is coming for you",
          "<p>The same byte of the enemy's record does two things: it picks the "
          "drawing (<code>0xC0 + frame*4</code>) and it decides the behaviour. "
@@ -398,12 +427,18 @@ GALERIA = [
      "there is nothing left. The arms always use the centre's drawing "
      "<b>plus two</b>, so they go out a couple of states earlier"),
     ("casillas_del_tablero.png",
-     "<b>El tablero</b>: el ladrillo entero y tres de sus ocho cuadros de "
-     "desmoronarse, el muro del borde, el premio —que es un cofre— y la "
-     "puerta, que lleva <b>EXIT</b> escrito encima",
-     "<b>The board</b>: the whole brick and three of its eight crumbling "
-     "frames, the border wall, the prize — a chest — and the door, with "
-     "<b>EXIT</b> written on it"),
+     "<b>El tablero</b>: los <b>ocho cuadros</b> del ladrillo desmoronándose, "
+     "del 0x80 al 0x87, y detrás el muro del borde y el pilar fijo, que son "
+     "los dos que no se pueden romper. Los tres se pintan repitiendo la MISMA "
+     "casilla cuatro veces (0x4B8C), al revés que el premio —un cofre— y la "
+     "puerta con su <b>EXIT</b>, que son cuatro casillas seguidas de la hoja "
+     "(0x4B7B)",
+     "<b>The board</b>: the <b>eight frames</b> of the brick crumbling, from "
+     "0x80 to 0x87, and behind them the border wall and the fixed pillar, the "
+     "two that cannot be broken. All three are painted by repeating the SAME "
+     "tile four times (0x4B8C), unlike the prize — a chest — and the door "
+     "with its <b>EXIT</b>, which are four consecutive tiles of the sheet "
+     "(0x4B7B)"),
     ("fuente.png",
      "<b>La fuente de la portada</b>, de la casilla 0x20 a la 0x5D. Las letras "
      "grandes de en medio son el rótulo BOMBER MAN; en la partida, ese mismo "
@@ -427,15 +462,23 @@ GALERIA = [
      "0x5B7C the digits, the monsters and the bomber from 0x20 on. Everything "
      "from 0x90 up <b>is left over from the title screen</b>, and that is "
      "where the H, D, F, A, M and I needed at the bottom come from"),
-    ("animacion.png",
-     "<b>Los dieciséis dibujos que cambian con la fase.</b> Cada cuatro fases, "
-     "0x4167 saca DOS bloques de la tabla de 0x419B y los carga encima: lo que "
-     "cambia es la cara del bicho y poco más. Aquí están las casillas que cada "
-     "bloque redefine, dibujadas desde el propio bloque",
-     "<b>The sixteen drawings that change with the stage.</b> Every four "
-     "stages, 0x4167 takes TWO blocks from the table at 0x419B and loads them "
-     "on top: what changes is the monster's face and little else. Here are the "
-     "tiles each block redefines, drawn from the block itself"),
+    ("premios.png",
+     "<b>Los ocho premios.</b> Lo que cambia con la fase no es el bicho: es lo "
+     "que hay debajo del primer ladrillo. Las dieciséis palabras de la tabla "
+     "de 0x419B apuntan a bloques de dos casillas, las pares a la 0x0A y las "
+     "impares a la 0x1A —las cuatro que pinta <code>pinta_el_premio</code>—, y "
+     "0x4167 carga una pareja por fase. Un helicóptero, un saco de dinero, un "
+     "velocípedo, un carruaje, una taza humeante, un instrumento de cuerda y "
+     "otros dos. El de las tres primeras fases, un cofre, viene en el bloque "
+     "grande y no está aquí",
+     "<b>The eight prizes.</b> What changes with the stage is not the monster: "
+     "it is what sits under the first brick. The sixteen words of the table at "
+     "0x419B point at two-tile blocks, the even ones at tile 0x0A and the odd "
+     "ones at 0x1A — the four that <code>pinta_el_premio</code> paints — and "
+     "0x4167 loads one pair per stage. A helicopter, a money bag, a "
+     "penny-farthing, a carriage, a steaming cup, a stringed instrument and "
+     "two more. The one for the first three stages, a chest, comes in the big "
+     "block and is not here"),
 ]
 
 

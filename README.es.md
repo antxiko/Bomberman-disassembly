@@ -14,7 +14,7 @@ Desensamblado completo y comentado del Bomber Man de Hudson Soft para MSX1,
 | datos identificados | 4.635 bytes (56,6 %) |
 | rutinas | 200, **ninguna por debajo del 10 % comentada** |
 | densidad de comentarios | **50,2 %** |
-| comprobaciones | 60 |
+| comprobaciones | 64 |
 | cotejo de VRAM contra openMSX | **0 diferencias** |
 
 ## Lo que hay dentro
@@ -40,6 +40,9 @@ sostienen el juego entero — `cp 020h` (libre), `cp 0e0h` (llama), `cp 0c0h`
 
 **La explosión alcanza dos casillas y sólo tira los ladrillos de una** — leído
 en el bucle desenrollado de `0x4AAC`, y luego medido en openMSX.
+
+**Ocho premios se turnan debajo de los ladrillos**, y el de la fase de bomba
+automática no es el de las tres que van detrás.
 
 **El bicho se pone rojo cuando te persigue**: el mismo byte elige el dibujo y
 decide el comportamiento.
@@ -78,7 +81,7 @@ src/bomberman.notes     los comentarios, anclados a dirección
 src/bomberman.entries   los puntos de entrada que el trazador no puede deducir
 src/bomberman.nocode    las zonas que NO son código, con su razón
 tools/                  el trazador, el generador, el dibujo y las comprobaciones
-tests/                  60 comprobaciones que no necesitan el cartucho
+tests/                  64 comprobaciones que no necesitan el cartucho
 docs/                   la web, en inglés y en castellano
 ```
 

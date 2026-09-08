@@ -360,31 +360,33 @@ C 0x415c queda bonus?
 C 0x4161 dos cuadros mas y a la fase siguiente
 
 B 0x4167 ----------------------------------------------------------------------
-B 0x4167 A LA FASE SIGUIENTE, y de paso a los dibujos que le tocan. La tabla
-B 0x4167 de 0x419B tiene DIECISEIS punteros a bloques de graficos, y de ahi
-B 0x4167 se sacan DOS por fase: el `and 003h` decide si se lee la primera
-B 0x4167 mitad de la tabla o la segunda, y el `and 00Ch` cual de las cuatro
-B 0x4167 parejas. Las cuatro primeras fases no cambian nada, que es lo que
-B 0x4167 dice el `and 0FCh`.
+B 0x4167 A LA FASE SIGUIENTE, y de paso AL PREMIO que le toca. La tabla de
+B 0x4167 0x419B tiene DIECISEIS punteros, y de ahi se sacan DOS por fase: uno
+B 0x4167 redefine las casillas 0x0A y 0x0B y el otro la 0x1A y la 0x1B, que
+B 0x4167 son las cuatro del premio. El `and 003h` decide si se lee la primera
+B 0x4167 mitad de la tabla o la segunda -la segunda en las fases multiplos de
+B 0x4167 cuatro, las de bomba automatica- y el `and 00Ch` cual de las cuatro
+B 0x4167 parejas. Las tres primeras fases se juegan con el premio que trae el
+B 0x4167 bloque grande, un cofre, y es lo que dice el `and 0FCh`.
 B 0x4167 ----------------------------------------------------------------------
 L 0x4167 a_la_fase_siguiente
 C 0x4167 una fase mas
 C 0x416f cada cuatro fases
 C 0x4171 la primera mitad de la tabla
 C 0x4174 o la segunda, que es lo que hace 0x4197
-C 0x4178 las cuatro primeras fases se juegan con los mismos dibujos
+C 0x4178 las tres primeras se juegan con el cofre del bloque grande
 C 0x417d cual de las cuatro parejas
-C 0x4183 el primer bloque de la pareja
+C 0x4183 la mitad de arriba del premio
 C 0x4189 cargado en los tres tercios
-C 0x418d y el segundo
+C 0x418d y la de abajo
 C 0x4194 a montar la fase, sin tocar vidas ni marcador
 L 0x4197 la_otra_mitad_de_la_tabla
-C 0x4197 la segunda mitad de la tabla de punteros
+C 0x4197 la segunda mitad de la tabla, la de las fases de bomba automatica
 
 D 0x4138 0x4149 tabla_del_psg_1  Ocho parejas y el 0xFF: el tono de la voz A (0x020A), los volumenes, y el periodo y la forma de la envolvente (0x0002 y 9). Es el pitido de cada diez puntos de bonus
 F 0x4138 2
 
-D 0x419b 0x41bb punteros_de_los_dibujos  Dieciseis palabras, todas dentro de 0x5E38..0x5F9A. 0x4171 las indexa con el numero de fase: la mitad de arriba o la de abajo segun `and 003h`, y la pareja segun `and 00Ch`
+D 0x419b 0x41bb punteros_de_los_premios  Dieciseis palabras, todas dentro de 0x5E38..0x5F9A, que 0x4171 indexa con el numero de fase: la mitad de arriba o la de abajo segun `and 003h`, y la pareja segun `and 00Ch`. Las pares apuntan a bloques que redefinen las casillas 0x0A y 0x0B y las impares, la 0x1A y la 0x1B: las cuatro del premio. Emparejadas dan OCHO premios enteros
 F 0x419b w
 
 B 0x41bb ----------------------------------------------------------------------
@@ -2133,21 +2135,36 @@ D 0x5b26 0x5b7c graficos_de_las_letras_del_marcador  Destino 0x0080, o sea la ca
 D 0x5b7c 0x5e38 graficos_de_la_partida  Destino 0x0100, o sea la casilla 0x20, con 64 casillas y 92 tramos de color. Son la casilla vacia, los dos puntos, la T y la G de STG, los siete cuadros del enemigo reventando y los ocho de la agonia del bombero, que acaban en un OUT verde. Lo carga 0x407A, y es lo que tapa el rotulo grande de la portada
 
 # ======================================================================
-# LOS GRAFICOS QUE CAMBIAN CON LA FASE
+# LOS OCHO PREMIOS
 # ======================================================================
-# 0x4167 usa el numero de fase para elegir DOS bloques de la tabla de 0x419B y
-# cargarlos encima de los que hay: `and 003h` decide si se lee la mitad de
-# arriba de la tabla o la de abajo, y `and 00Ch` cual de las cuatro parejas.
-# Las DIECISEIS palabras de esa tabla caen TODAS dentro de 0x5E38..0x5F9A, y la
-# mas baja es 0x5E38 justo, que es donde empieza el ultimo bloque de datos del
-# cartucho. Eso es lo que dice que ese bloque son los dibujos que la tabla
-# reparte, y no otra cosa.
+# Lo que cambia con la fase es EL PREMIO, y eso lo dicen los destinos. Las
+# DIECISEIS palabras de la tabla de 0x419B apuntan a bloques del formato de
+# 0x5088 de DOS casillas cada uno, y los destinos van alternando:
 #
-# Cada uno de los dieciseis es un bloque del formato de 0x5088 con destino
-# 0x00D0 o 0x0050 y dos casillas dentro, o sea que lo unico que cambia de una
-# fase a otra son unas pocas casillas: la cara del enemigo y poco mas.
+#     las palabras pares    destino 0x0050  -> casillas 0x0A y 0x0B
+#     las impares           destino 0x00D0  -> casillas 0x1A y 0x1B
+#
+# Esas cuatro casillas son exactamente las que pinta `pinta_el_premio`
+# (0x45F6). Y 0x4167 carga una PAREJA de palabras consecutivas, o sea una
+# mitad de arriba y una de abajo, asi que los dieciseis bloques son OCHO
+# premios enteros: un helicoptero, un saco de dinero con el simbolo del dolar,
+# un velocipedo, un carruaje, una taza humeante, un instrumento de cuerda y
+# otros dos. El de las tres primeras fases -un cofre- viene en el bloque
+# grande de la partida y no esta aqui.
+#
+# Cual toca lo deciden dos mascaras sobre el numero de fase: `and 003h` elige
+# la mitad de la tabla -la de abajo en las fases multiplos de cuatro, que son
+# las de bomba automatica- y `and 00Ch` cual de las cuatro parejas. Con eso el
+# premio de la fase de bomba automatica NO es el mismo que el de las tres que
+# van detras. Las tres primeras fases no cambian nada, que es lo que dice el
+# `and 0FCh`.
+#
+# Las dieciseis palabras caen TODAS dentro de 0x5E38..0x5F9A, y la mas baja es
+# 0x5E38 justo, que es donde empieza el ultimo bloque de datos del cartucho.
+# Eso es lo que dice que ese bloque son los premios que la tabla reparte, y no
+# otra cosa.
 
-D 0x5e38 0x6000 dibujos_que_apunta_0x419B  Los 456 bytes del final del cartucho: los dieciseis bloques a los que apunta la tabla de 0x419B, cada uno con su destino, dos casillas de patrones y sus tramos de color. La primera palabra de la tabla es 0x5E38 exacto, o sea el principio de este bloque
+D 0x5e38 0x6000 los_ocho_premios  Los 456 bytes del final del cartucho: los dieciseis bloques a los que apunta la tabla de 0x419B, cada uno con su destino, dos casillas de patrones y sus tramos de color. Los pares van a la casilla 0x0A y los impares a la 0x1A, o sea las cuatro que pinta `pinta_el_premio`; emparejados dan ocho premios. La primera palabra de la tabla es 0x5E38 exacto, o sea el principio de este bloque
 
 # ======================================================================
 # LO QUE DICE LA PANTALLA DE TITULO, DIBUJADA DESDE LA ROM

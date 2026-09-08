@@ -309,12 +309,14 @@ L_4149:
 
 ; ----------------------------------------------------------------------
 ; ----------------------------------------------------------------------
-; A LA FASE SIGUIENTE, y de paso a los dibujos que le tocan. La tabla
-; de 0x419B tiene DIECISEIS punteros a bloques de graficos, y de ahi
-; se sacan DOS por fase: el `and 003h` decide si se lee la primera
-; mitad de la tabla o la segunda, y el `and 00Ch` cual de las cuatro
-; parejas. Las cuatro primeras fases no cambian nada, que es lo que
-; dice el `and 0FCh`.
+; A LA FASE SIGUIENTE, y de paso AL PREMIO que le toca. La tabla de
+; 0x419B tiene DIECISEIS punteros, y de ahi se sacan DOS por fase: uno
+; redefine las casillas 0x0A y 0x0B y el otro la 0x1A y la 0x1B, que
+; son las cuatro del premio. El `and 003h` decide si se lee la primera
+; mitad de la tabla o la segunda -la segunda en las fases multiplos de
+; cuatro, las de bomba automatica- y el `and 00Ch` cual de las cuatro
+; parejas. Las tres primeras fases se juegan con el premio que trae el
+; bloque grande, un cofre, y es lo que dice el `and 0FCh`.
 ; ----------------------------------------------------------------------
 ; ----------------------------------------------------------------------
 a_la_fase_siguiente:
@@ -326,13 +328,13 @@ a_la_fase_siguiente:
 	ld hl,0419bh		;4171   ; la primera mitad de la tabla
 	call z,la_otra_mitad_de_la_tabla		;4174   ; o la segunda, que es lo que hace 0x4197
 	pop af			;4177
-	and 0fch		;4178   ; las cuatro primeras fases se juegan con los mismos dibujos
+	and 0fch		;4178   ; las tres primeras se juegan con el cofre del bloque grande
 	jp z,monta_la_fase		;417a
 	and 00ch		;417d   ; cual de las cuatro parejas
 	ld c,a			;417f
 	ld b,000h		;4180
 	add hl,bc			;4182
-	ld e,(hl)			;4183   ; el primer bloque de la pareja
+	ld e,(hl)			;4183   ; la mitad de arriba del premio
 	inc hl			;4184
 	ld d,(hl)			;4185
 	inc hl			;4186
@@ -340,22 +342,25 @@ a_la_fase_siguiente:
 	ex de,hl			;4188
 	call carga_los_graficos_en_los_tres_tercios		;4189   ; cargado en los tres tercios
 	pop hl			;418c
-	ld e,(hl)			;418d   ; y el segundo
+	ld e,(hl)			;418d   ; y la de abajo
 	inc hl			;418e
 	ld d,(hl)			;418f
 	ex de,hl			;4190
 	call carga_los_graficos_en_los_tres_tercios		;4191
 	jp monta_la_fase		;4194   ; a montar la fase, sin tocar vidas ni marcador
 la_otra_mitad_de_la_tabla:
-	ld hl,041abh		;4197   ; la segunda mitad de la tabla de punteros
+	ld hl,041abh		;4197   ; la segunda mitad de la tabla, la de las fases de bomba automatica
 	ret			;419a
 
 ; ----------------------------------------------------------------------
-; DATOS punteros_de_los_dibujos: Dieciseis palabras, todas dentro de
-;   0x5E38..0x5F9A. 0x4171 las indexa con el numero de fase: la mitad de
-;   arriba o la de abajo segun `and 003h`, y la pareja segun `and 00Ch`
+; DATOS punteros_de_los_premios: Dieciseis palabras, todas dentro de
+;   0x5E38..0x5F9A, que 0x4171 indexa con el numero de fase: la mitad de
+;   arriba o la de abajo segun `and 003h`, y la pareja segun `and 00Ch`. Las
+;   pares apuntan a bloques que redefinen las casillas 0x0A y 0x0B y las
+;   impares, la 0x1A y la 0x1B: las cuatro del premio. Emparejadas dan OCHO
+;   premios enteros
 ;   0x419b..0x41bb  (32 bytes)
-DATA_punteros_de_los_dibujos:
+DATA_punteros_de_los_premios:
 	defw 05ec6h,05edeh,05e4eh,05e38h,05f54h,05f6eh,05f20h,05f38h	; 419b
 	defw 05e9ah,05eb0h,05e6ch,05e84h,05f84h,05f9ah,05ef4h,05f0ah	; 41ab
 
@@ -3570,12 +3575,14 @@ DATA_graficos_de_la_partida:
 	defb 004h,0d0h,003h,0f0h,001h,070h,004h,0d0h,003h,0f0h,001h,0ffh	; 5e2c  .....p......
 
 ; ----------------------------------------------------------------------
-; DATOS dibujos_que_apunta_0x419B: Los 456 bytes del final del cartucho: los
-;   dieciseis bloques a los que apunta la tabla de 0x419B, cada uno con su
-;   destino, dos casillas de patrones y sus tramos de color. La primera
-;   palabra de la tabla es 0x5E38 exacto, o sea el principio de este bloque
+; DATOS los_ocho_premios: Los 456 bytes del final del cartucho: los dieciseis
+;   bloques a los que apunta la tabla de 0x419B, cada uno con su destino, dos
+;   casillas de patrones y sus tramos de color. Los pares van a la casilla
+;   0x0A y los impares a la 0x1A, o sea las cuatro que pinta
+;   `pinta_el_premio`; emparejados dan ocho premios. La primera palabra de la
+;   tabla es 0x5E38 exacto, o sea el principio de este bloque
 ;   0x5e38..0x6000  (456 bytes)
-DATA_dibujos_que_apunta_0x419B:
+DATA_los_ocho_premios:
 	defb 0d0h,000h,002h,075h,075h,0f8h,0fdh,0f5h,0f8h,07dh,03fh,05ch,07ch,03eh,05eh,05eh	; 5e38  ...uu....}?\|>^^
 	defb 03eh,07ch,0f8h,0a0h,010h,0ffh,050h,000h,002h,00fh,07eh,01eh,00fh,00fh,01fh,03dh	; 5e48  >|....P...~....=
 	defb 078h,01eh,021h,0d1h,00eh,080h,0e0h,078h,03ch,0a0h,003h,0d0h,001h,0a0h,004h,0d0h	; 5e58  x.!....x<.......

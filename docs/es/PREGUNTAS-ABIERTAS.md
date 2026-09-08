@@ -30,13 +30,14 @@ cartucho, dicen `OBADD`. Que sean cinco letras y un cero es sugerente pero no
 prueba nada: pueden ser un resto de una compilación anterior, una cadena que
 alguien empezó y no terminó, o simple casualidad. **No sabemos qué eran.**
 
-## Qué diferencia hay de verdad entre los dieciséis dibujos de fase
+## Qué son dos de los ocho premios
 
-`0x4167` carga dos bloques de la tabla de `0x419B` cada cuatro fases, y cada
-bloque redefine dos casillas. Están dibujados —salen en la portada— y se ve que
-lo que cambia es la cara del bicho, pero **no hemos jugado lo bastante como
-para decir si además cambia el comportamiento**. Por el código no: la tabla
-sólo carga gráficos.
+Los ocho están dibujados desde la ROM y seis se reconocen sin discusión: un
+helicóptero, un saco de dinero con el símbolo del dólar, un velocípedo, un
+carruaje, una taza humeante y un instrumento de cuerda. Los otros dos —uno
+rojo y vertical con huecos blancos, y uno blanco con forma de rombo con
+cola— **no sabemos qué son**. Son 16 por 16 píxeles en dos colores; puede que
+no haya respuesta.
 
 ## Si el `cp 089h` muerto de `0x4AC9` llegó a ejecutarse alguna vez
 

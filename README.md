@@ -14,7 +14,7 @@ on an 8 KB cartridge. The smallest cartridge in this series.
 | identified data | 4,635 bytes (56.6%) |
 | routines | 200, **none below 10% commented** |
 | comment density | **50.2%** |
-| tests | 60 |
+| tests | 64 |
 | VRAM comparison against openMSX | **0 differences** |
 
 ## What is inside
@@ -38,6 +38,9 @@ blinking `BOMB AUTO SETTING STAGE` under exactly the same `and 003h`.
 
 **The blast reaches two cells and only breaks the bricks in one** — read in the
 unrolled loop at `0x4AAC`, and then measured in openMSX.
+
+**Eight prizes cycle under the bricks**, and the auto-bomb stage does not
+get the same one as the three that follow it.
 
 **The monster turns red when it is hunting you**: the same byte picks the
 drawing and decides the behaviour.
@@ -76,7 +79,7 @@ src/bomberman.notes     the comments, anchored to addresses
 src/bomberman.entries   the entry points the tracer cannot work out
 src/bomberman.nocode    the ranges that are NOT code, with the reason
 tools/                  the tracer, the generator, the drawing and the checks
-tests/                  60 checks that do not need the cartridge
+tests/                  64 checks that do not need the cartridge
 docs/                   the site, in English and Spanish
 ```
 

@@ -94,7 +94,7 @@ eab39bab547089facf9df3021e729b65fba2b263c505325d034ed1b6e3df8eea
 <h2 id="the-one-command">The one command</h2>
 <pre><code>make all</code></pre>
 <p>It chains four steps, and the order matters:</p>
-<table><tr><th>step</th><th>what it does</th></tr><tr><td><code>make listado</code></td><td>traces the flow from INIT and generates <code>src/bomberman.asm</code></td></tr><tr><td><code>make verify</code></td><td>reassembles with pasmo and compares the sha256 with the original</td></tr><tr><td><code>make sanity</code></td><td>checks that not one byte of the cartridge is left unexplained</td></tr><tr><td><code>make test</code></td><td>the 50 checks on the listing and on what it claims</td></tr></table>
+<table><tr><th>step</th><th>what it does</th></tr><tr><td><code>make listado</code></td><td>traces the flow from INIT and generates <code>src/bomberman.asm</code></td></tr><tr><td><code>make verify</code></td><td>reassembles with pasmo and compares the sha256 with the original</td></tr><tr><td><code>make sanity</code></td><td>checks that not one byte of the cartridge is left unexplained</td></tr><tr><td><code>make test</code></td><td>the 64 checks on the listing and on what it claims</td></tr></table>
 <p><code>make verify</code> is the one that decides whether the disassembly is trustworthy: if the 8192 reassembled bytes do not give the same sha256, the listing is lying somewhere.</p>
 <h2 id="the-other-commands">The other commands</h2>
 <pre><code>make densidad     # how many instructions carry a comment, routine by routine
@@ -107,7 +107,7 @@ src/bomberman.notes     the comments, anchored to addresses
 src/bomberman.entries   the entry points the tracer cannot work out
 src/bomberman.nocode    the ranges that are NOT code, with the reason
 tools/                  the tracer, the generator and the checks
-tests/                  50 checks that do not need the cartridge
+tests/                  64 checks that do not need the cartridge
 docs/                   this site, in both languages</code></pre>
 <p><b>The listing is not edited by hand.</b> The comments live in <code>src/bomberman.notes</code>, each one anchored to an address, and they survive a re-trace: if the tracer changes its mind about where a routine starts, the comments still land where they should. <code>make listado</code> glues them on.</p>
 <h2 id="why-there-are-three-annotation-files-and-not-one">Why there are three annotation files and not one</h2>

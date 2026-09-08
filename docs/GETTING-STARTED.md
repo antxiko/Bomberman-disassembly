@@ -32,7 +32,7 @@ It chains four steps, and the order matters:
 | `make listado` | traces the flow from INIT and generates `src/bomberman.asm` |
 | `make verify` | reassembles with pasmo and compares the sha256 with the original |
 | `make sanity` | checks that not one byte of the cartridge is left unexplained |
-| `make test` | the 50 checks on the listing and on what it claims |
+| `make test` | the 64 checks on the listing and on what it claims |
 
 `make verify` is the one that decides whether the disassembly is trustworthy:
 if the 8192 reassembled bytes do not give the same sha256, the listing is
@@ -55,7 +55,7 @@ src/bomberman.notes     the comments, anchored to addresses
 src/bomberman.entries   the entry points the tracer cannot work out
 src/bomberman.nocode    the ranges that are NOT code, with the reason
 tools/                  the tracer, the generator and the checks
-tests/                  50 checks that do not need the cartridge
+tests/                  64 checks that do not need the cartridge
 docs/                   this site, in both languages
 ```
 
