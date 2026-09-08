@@ -1,0 +1,18 @@
+# Puntos de entrada de Bomber Man (Hudson Soft, 1983). ROM de 8 KB en 0x4000.
+#
+# El unico que declara el cartucho es INIT. Todo lo demas sale de seguir el
+# flujo desde aqui, y lo que el trazador no pueda deducir -ganchos de
+# interrupcion, destinos de saltos indirectos- se anade abajo CON SU
+# JUSTIFICACION, nunca porque quede bonito.
+0x4004   # INIT, declarado en la cabecera del cartucho (bytes 2-3: 04 40).
+         # Cae DENTRO de la propia cabecera: los campos STATEMENT, DEVICE y
+         # TEXT y los seis bytes reservados son en realidad las primeras
+         # instrucciones, `ld sp,0F000h` y tres `call`.
+
+# --- Detras de cada `call 0x404E` va una tabla de parejas (registro, valor)
+#     del PSG cerrada por 0xFF, y la rutina hace `ret` al byte que va DESPUES
+#     de ese 0xFF (`push hl / ret` en 0x405C). Esas tres continuaciones no las
+#     puede deducir el trazador.
+0x4019   # sigue tras la tabla de 0x4010
+0x4149   # sigue tras la tabla de 0x4138
+0x4A06   # sigue tras la tabla de 0x49F3

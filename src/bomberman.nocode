@@ -1,0 +1,13 @@
+# Zonas que el trazador NO debe leer como codigo, cada una con la razon por la
+# que se sabe que son datos.
+#
+# LAS TABLAS DE REGISTROS DEL PSG, INCRUSTADAS DETRAS DEL `call 0x404E`.
+# 0x404E no es una rutina normal: empieza con `pop hl`, o sea que recoge la
+# direccion de RETORNO y la usa como puntero. Lee parejas (registro, valor),
+# se las pasa a 0x50CF -que hace `ld a,d` y `call WRTPSG`- y para cuando el
+# primer byte de la pareja es 0xFF; entonces hace `push hl / ret`, o sea que
+# sigue ejecutando DETRAS de la tabla. Asi que los bytes entre el `call` y el
+# 0xFF son datos, y el codigo continua despues.
+0x4010 0x4019   4 parejas + 0xFF (call en 0x400D); sigue en 0x4019
+0x4138 0x4149   8 parejas + 0xFF (call en 0x4135); sigue en 0x4149
+0x49F3 0x4A06   9 parejas + 0xFF (call en 0x49F0); sigue en 0x4A06

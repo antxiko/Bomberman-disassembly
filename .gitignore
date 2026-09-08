@@ -1,0 +1,4 @@
+work/
+*.rom
+__pycache__/
+.forja/

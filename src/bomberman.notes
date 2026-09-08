@@ -1,0 +1,249 @@
+# Anotaciones de Bomber Man (Hudson Soft, MSX1, cartucho de 8 KB).
+#
+# Cada linea va anclada a una direccion, asi que los comentarios sobreviven a
+# un retrazado. Directivas: L=etiqueta, C=comentario de linea, B=cabecera de
+# bloque, D=rango de datos, F=anchura de las filas de un bloque de datos. Todo
+# sale de leer el codigo que lo usa. Sin acentos a proposito.
+#
+# EL MAPA DE MEMORIA. Cartucho de 8 KB en la pagina 1 (0x4000-0x5FFF), el
+# tamano mas pequeno de la serie. La pila se pone en 0xF000 (0x4004) y las
+# variables del juego viven a partir de 0xE000.
+#
+# LA CABECERA DEL CARTUCHO ES CODIGO. Los dos primeros bytes son "AB" y los dos
+# siguientes la direccion de INIT, y esa direccion es 0x4004: justo donde el
+# formato coloca STATEMENT, DEVICE y TEXT. O sea que esos tres campos y los seis
+# bytes "reservados" que van detras NO son campos, son las primeras
+# instrucciones del juego:
+#
+#     4004  31 00 F0     ld sp,0F000h
+#     4007  CD D1 4F     call 4FD1h
+#     400A  CD 62 50     call 5062h
+#     400D  CD 4E 40     call 404Eh
+#
+# Solo los cuatro primeros bytes del cartucho son cabecera de verdad.
+#
+# LA VRAM. Los ocho registros salen de 0x5144 y los vuelca 0x5062:
+#
+#     R0 = 0x02   SCREEN 2
+#     R1 = 0xC2   16 KB, pantalla encendida, sprites de 16x16
+#     R2 = 0x06   tabla de nombres en 0x1800
+#     R3 = 0x7F   color
+#     R4 = 0x07   patrones
+#     R5 = 0x38   atributos de sprite en 0x1C00
+#     R6 = 0x07   patrones de sprite en 0x3800
+#     R7 = 0xF0   tinta blanca sobre fondo transparente
+#
+# Que 0x1C00 son los atributos lo confirma la instruccion de al lado: 0x507C
+# escribe un 0xD0 justo ahi, que es la marca de "no hay mas sprites".
+#
+# DOS FORMATOS, Y LOS DOS SE RECORREN, NO SE SUPONEN.
+#
+# 1. LA CARGA DE GRAFICOS (0x5088, y su nucleo 0x5093). 0x5088 llama tres veces
+#    con A = 0, 8 y 0x10, que son los TRES TERCIOS de SCREEN 2. El bloque es:
+#
+#        2 bytes   destino en la VRAM; al byte alto se le suma el tercio
+#        1 byte    cuantas casillas, y el CERO vale 256 (0x50A2: `or a` y un
+#                  `inc h` si sale cero)
+#        n*8       los patrones, que LDIRVM vuelca de golpe
+#        parejas   (color, cuantas casillas) que FILVRM pinta en la tabla de
+#                  color -0x2000 mas arriba, el `add a,020h` de 0x509B-,
+#                  cerradas por 0xFF
+#
+#    Los tres bloques que hay teselan sin un hueco: 0x514C..0x5B26..0x5B7C..
+#    0x5E38, y eso es lo que prueba que el formato esta bien leido.
+#
+# 2. LOS ROTULOS (0x4314). Una tira de (fila, columna, texto) con el texto
+#    cerrado por 0x00, y la tira entera cerrada por 0xFF. La unica que hay
+#    empieza en 0x4323 y acaba CLAVADA en 0x4442, con 19 rotulos.
+#
+# EL SONIDO SE PROGRAMA CON TABLAS INCRUSTADAS. 0x404E hace `pop hl`, o sea que
+# usa la direccion de retorno como puntero: lee parejas (registro, valor), se
+# las pasa a 0x50CF -que hace `ld a,d` y llama a WRTPSG- y para en el 0xFF;
+# luego `push hl / ret` sigue DETRAS de la tabla. Hay tres sitios asi, y estan
+# declarados en el .nocode. La version con puntero en memoria, para los efectos
+# que duran, es 0x4025.
+
+# ======================================================================
+# LA CABECERA
+# ======================================================================
+D 0x4000 0x4004 cabecera_del_cartucho  "AB" y la direccion de INIT (0x4004), que cae dentro de la propia cabecera: lo que deberian ser STATEMENT, DEVICE y TEXT ya es codigo
+F 0x4000 4
+
+B 0x4004 ----------------------------------------------------------------------
+B 0x4004 EL ARRANQUE, que empieza DENTRO de la cabecera del cartucho.
+B 0x4004 La BIOS llama aqui tras encontrar el "AB" de 0x4000. Lo primero es
+B 0x4004 la pila, y luego tres llamadas: la RAM a cero, el VDP y el PSG.
+B 0x4004 ----------------------------------------------------------------------
+L 0x4004 INIT
+C 0x4004 la pila, arriba del todo de la RAM
+C 0x4007 borra la RAM del juego
+C 0x400a los ocho registros del VDP y la pantalla
+C 0x400d y el PSG, con la tabla que va aqui detras
+C 0x4019 el marcador y el record, a cero
+C 0x401c (0xE302), el marcador
+C 0x401f (0xE300), el record
+C 0x4022 y a la pantalla de titulo
+
+B 0x4025 ----------------------------------------------------------------------
+B 0x4025 Los efectos que duran mas de un cuadro: en vez de llevar la tabla
+B 0x4025 incrustada, se guarda por donde va en (0xE305) y (0xE307), una
+B 0x4025 pareja de punteros por voz. El 0xFF cierra la tabla igual.
+B 0x4025 ----------------------------------------------------------------------
+L 0x4025 sigue_los_dos_guiones_de_sonido
+C 0x4025 el primero, en (0xE305)
+C 0x402c y el segundo, en (0xE307)
+L 0x4030 sigue_un_guion_de_sonido
+C 0x4030 por donde iba
+C 0x4036 con 0xFF no queda nada
+C 0x403a el registro
+C 0x4040 y el valor
+C 0x4041 al PSG
+C 0x4047 se apunta por donde se ha quedado
+
+B 0x404e ----------------------------------------------------------------------
+B 0x404e LA TABLA DE REGISTROS DEL PSG QUE VA DETRAS DEL `call`.
+B 0x404e El `pop hl` no recoge un dato: recoge la DIRECCION DE RETORNO, que
+B 0x404e es donde empieza la tabla, porque la tabla va pegada detras del
+B 0x404e `call`. Se leen parejas (registro, valor) hasta el 0xFF, y el
+B 0x404e `push hl / ret` del final devuelve el control al byte de despues.
+B 0x404e Los tres sitios que la usan estan en el .nocode.
+B 0x404e ----------------------------------------------------------------------
+L 0x404e vuelca_la_tabla_del_psg
+C 0x404e la direccion de retorno ES el puntero a la tabla
+C 0x4051 deshace el `inc d` de la comprobacion
+C 0x4052 el valor
+C 0x4053 al PSG
+C 0x4057 el registro
+C 0x4059 con 0xFF se acabo
+C 0x405c y se sigue DETRAS de la tabla
+
+D 0x4010 0x4019 tabla_del_psg_del_arranque  Cuatro parejas (registro, valor) y el 0xFF que cierra: el registro 7 a 0xA8 -el mezclador- y los tres volumenes a cero. O sea, apagar el sonido al arrancar
+F 0x4010 2
+D 0x4138 0x4149 tabla_del_psg_1  Ocho parejas y el 0xFF: el tono de la voz A (0x020A), los volumenes, y el periodo y la forma de la envolvente (0x0002 y 9)
+F 0x4138 2
+D 0x49f3 0x4a06 tabla_del_psg_2  Nueve parejas y el 0xFF: el tono de la voz B, el ruido a 0x1F y la envolvente otra vez
+F 0x49f3 2
+
+# ======================================================================
+# LOS ROTULOS
+# ======================================================================
+B 0x4314 ----------------------------------------------------------------------
+B 0x4314 Pinta una tira de rotulos: por cada uno, la fila y la columna y
+B 0x4314 luego el texto cerrado por 0x00. La tira entera acaba en 0xFF.
+B 0x4314 ----------------------------------------------------------------------
+L 0x4314 pinta_una_tira_de_rotulos
+C 0x4314 con 0xFF se acabo la tira
+C 0x4317 la fila
+C 0x4319 y la columna
+C 0x431b pone el cursor
+C 0x431e y suelta el texto hasta el 0x00
+
+D 0x4323 0x4442 rotulos_de_la_pantalla_de_titulo  Diecinueve rotulos (fila, columna, texto cerrado por 0x00) y el 0xFF que cierra la tira: UP, HUDSON, BOMB, SOFT, LEFT, RIGHT, SPACE, HI@SCORE! y el marco que los rodea. Acaba clavado donde empieza el codigo de 0x4442
+
+# ======================================================================
+# EL VDP Y EL PSG
+# ======================================================================
+B 0x5062 ----------------------------------------------------------------------
+B 0x5062 Deja la maquina lista: quita el gancho de la BIOS, vuelca los ocho
+B 0x5062 registros del VDP desde 0x5144 y apaga la lista de sprites.
+B 0x5062 ----------------------------------------------------------------------
+L 0x5062 monta_el_vdp
+C 0x5065 un `ret` en H.TIMI: la BIOS deja de meter mano cada interrupcion
+C 0x506a los ocho registros
+C 0x506c empezando por el 0
+C 0x506e la tabla de 0x5144
+C 0x5072 BIOS WRTVDP
+C 0x507c los atributos de sprite, en 0x1C00
+C 0x507f un 0xD0 en el primero: no hay ni un sprite
+
+B 0x5088 ----------------------------------------------------------------------
+B 0x5088 CARGA UN BLOQUE DE GRAFICOS EN LOS TRES TERCIOS.
+B 0x5088 SCREEN 2 tiene tres juegos de patrones y de color, uno por tercio
+B 0x5088 de pantalla, y aqui se cargan los tres con lo mismo: A vale 0, 8 y
+B 0x5088 0x10, que sumados al byte alto del destino dan 0x000, 0x800 y
+B 0x5088 0x1000. El formato del bloque esta arriba, en la cabecera.
+B 0x5088 ----------------------------------------------------------------------
+L 0x5088 carga_los_graficos_en_los_tres_tercios
+C 0x5088 el primer tercio
+C 0x508c el segundo, 0x800 mas alla
+C 0x5091 y el tercero
+L 0x5093 carga_un_tercio
+C 0x5094 el destino en la VRAM
+C 0x5098 mas el tercio que toque
+C 0x509b y 0x2000 mas arriba, la tabla de color
+C 0x509e cuantas casillas
+C 0x50a2 el cero vale 256
+C 0x50a8 por ocho, que es lo que ocupa una casilla
+C 0x50b1 BIOS LDIRVM: los patrones de golpe
+L 0x50b6 rellena_el_color
+C 0x50b8 con 0xFF se acabo
+C 0x50bd cuantas casillas del mismo color
+C 0x50c6 BIOS FILVRM
+C 0x50ca y a por el tramo siguiente
+
+L 0x50cf escribe_en_el_psg
+C 0x50cf D es el registro y E el valor
+C 0x50d2 BIOS WRTPSG
+
+D 0x5144 0x514c registros_del_vdp  Los ocho registros que 0x5062 vuelca del 0 al 7: SCREEN 2, sprites de 16x16, nombres en 0x1800, atributos en 0x1C00 y patrones de sprite en 0x3800
+F 0x5144 8
+
+D 0x514c 0x5b26 graficos_de_la_pantalla_de_titulo  El bloque que carga 0x427F: destino 0x0000, 256 casillas de patrones y 235 tramos de color. Lo vuelca 0x5088 en los tres tercios
+D 0x5b26 0x5b7c graficos_1  Destino 0x0080, 10 casillas y un solo tramo de color. Lo carga 0x4074
+D 0x5b7c 0x5e38 graficos_2  Destino 0x0100, 64 casillas y 92 tramos de color. Lo carga 0x407A
+
+# ======================================================================
+# LOS GUIONES DE SONIDO
+# ======================================================================
+# Los que duran mas de un cuadro no van incrustados detras del `call`: se
+# apunta su direccion en (0xE305) o (0xE307) -una por voz- y 0x4025 los va
+# siguiendo. El formato son las mismas parejas (registro, valor), pero aqui
+# CADA 0xFF marca el final del cuadro, no el del guion: 0x4030 guarda el
+# puntero y sigue por ahi al cuadro siguiente. El guion entero se acaba cuando
+# el primer byte de un cuadro ya es 0xFF, o sea con un 0xFF doble.
+#
+# El de 0x41D0 se lee entero y cuadra clavado en 0x41EB: siete cuadros bajando
+# el registro 4 -el tono fino de la voz B- de 0xEE a 0x7E, o sea subiendo de
+# nota, y un ultimo cuadro que pone el volumen de la voz C a cero.
+
+D 0x41d0 0x41eb guion_de_sonido_41D0  Ocho cuadros de parejas (registro, valor) separados por 0xFF y cerrados por un 0xFF doble; lo instala 0x41BD en (0xE307). Sube el tono de la voz B de 0xEE a 0x7E y apaga la voz C
+D 0x450f 0x453b guion_de_sonido_450F  Lo instala 0x4508 en (0xE305)
+D 0x4892 0x48a5 guion_de_sonido_4892  Lo instala 0x488A en (0xE305)
+D 0x4c3b 0x4c47 guion_de_sonido_4C3B  Lo instala 0x4C34 en (0xE307)
+D 0x4cc7 0x4cd4 guion_de_sonido_4CC7  Lo instala 0x4CC0 en (0xE307)
+
+# ======================================================================
+# LOS GRAFICOS QUE SE ANIMAN
+# ======================================================================
+# 0x4167 lleva un contador en (0xE310) y con sus bits elige una entrada de la
+# tabla de 0x419B: `and 003h` decide si toca cambiar y `and 00Ch` da el
+# desplazamiento dentro de la tabla. Las DIECISEIS palabras de esa tabla caen
+# TODAS dentro de 0x5E38..0x5F9A, y la mas baja es 0x5E38 justo, que es donde
+# empieza el ultimo bloque de datos del cartucho. Eso es lo que dice que ese
+# bloque son los dibujos que la tabla reparte, y no otra cosa.
+
+D 0x419b 0x41bb punteros_de_los_dibujos  Dieciseis palabras, todas dentro de 0x5E38..0x5F9A. 0x4171 las indexa con el contador de cuadros de (0xE310)
+F 0x419b w
+
+D 0x5e38 0x6000 dibujos_que_apunta_0x419B  Los 456 bytes del final del cartucho, que son a lo que apuntan las dieciseis palabras de 0x419B. La primera de ellas es 0x5E38 exacto, o sea el principio de este bloque
+
+# ======================================================================
+# LOS VALORES DE PARTIDA DE LA RAM
+# ======================================================================
+# 0x4FD1 es la primera de las tres llamadas de INIT, y lo que hace es un `ldir`
+# de 0x90 bytes desde 0x4FDD a 0xE305. O sea que las variables del juego no
+# arrancan a cero: arrancan con esta tabla, y por eso (0xE305) y (0xE307) -los
+# dos punteros de sonido- ya valen algo antes de tocar nada: 0x4539 los dos,
+# que son las dos primeras palabras del bloque.
+#
+# OJO, EL `ldir` COPIA DE MAS. 0x4FDD + 0x90 = 0x506D, y el codigo de
+# `monta_el_vdp` empieza en 0x5062: los once ultimos bytes que se copian a la
+# RAM son las primeras instrucciones de esa rutina, no datos. Aqui el bloque se
+# declara solo hasta donde es dato de verdad.
+
+D 0x4fdd 0x5062 valores_de_partida_de_la_ram  Lo que 0x4FD1 vuelca en 0xE305 con un `ldir` de 0x90 bytes. Las dos primeras palabras son 0x4539 repetido, que son los punteros de sonido de arranque. El `ldir` se pasa once bytes y arrastra el principio de `monta_el_vdp`
+
+L 0x4fd1 pon_los_valores_de_partida
+C 0x4fd1 la tabla
+C 0x4fd4 a las variables del juego
+C 0x4fd7 0x90 bytes, once mas de los que son datos
