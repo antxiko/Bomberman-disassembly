@@ -138,7 +138,6 @@ C 0x4319 y la columna
 C 0x431b pone el cursor
 C 0x431e y suelta el texto hasta el 0x00
 
-D 0x4323 0x4442 rotulos_de_la_pantalla_de_titulo  Diecinueve rotulos (fila, columna, texto cerrado por 0x00) y el 0xFF que cierra la tira: UP, HUDSON, BOMB, SOFT, LEFT, RIGHT, SPACE, HI@SCORE! y el marco que los rodea. Acaba clavado donde empieza el codigo de 0x4442
 
 # ======================================================================
 # EL VDP Y EL PSG
@@ -247,3 +246,24 @@ L 0x4fd1 pon_los_valores_de_partida
 C 0x4fd1 la tabla
 C 0x4fd4 a las variables del juego
 C 0x4fd7 0x90 bytes, once mas de los que son datos
+
+# ======================================================================
+# LO QUE DICE LA PANTALLA DE TITULO, DIBUJADA DESDE LA ROM
+# ======================================================================
+# Montando la tira de rotulos de 0x4323 sobre los graficos de 0x514C -que es
+# justo lo que hace 0x4279- sale la pantalla entera, y ahi se lee lo que los
+# bytes por si solos no dicen, porque el cartucho carga su PROPIA fuente y los
+# codigos no son ASCII del todo.
+#
+# DOS PROGRAMADORES, no uno: `PROGRAMMER:Y.TANAKA` y `T.SASAGAWA`, en las filas
+# 20 y 21. El byte 0x21, que en ASCII seria un `!`, es en esta fuente los DOS
+# PUNTOS; por eso leyendo los bytes crudos parecia decir "PROGRAMMER!".
+#
+# Y UNA ERRATA DE HUDSON: la ultima linea dice `PUSH SPACE-KEY OR TORIGER`.
+# TORIGER, no TRIGGER.
+#
+# El resto de la pantalla: BOMBER MAN arriba con 200-10 y BONUS ?PTS y EXIT,
+# el mando dibujado con UP/DOWN/LEFT/RIGHT y BOMB sobre un recuadro con SPACE,
+# HUDSON SOFT 1983 a la derecha y HI-SCORE / SCORE en medio.
+
+D 0x4323 0x4442 rotulos_de_la_pantalla_de_titulo  Diecinueve rotulos (fila, columna, texto cerrado por 0x00) y el 0xFF que cierra la tira. Dibujados desde la ROM dicen: BOMBER MAN, 200-10, BONUS ?PTS, EXIT, el mando con UP/DOWN/LEFT/RIGHT y BOMB/SPACE, HUDSON SOFT 1983, HI-SCORE y SCORE, PROGRAMMER:Y.TANAKA y T.SASAGAWA, y PUSH SPACE-KEY OR TORIGER, con la errata incluida

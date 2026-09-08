@@ -487,9 +487,11 @@ pinta_una_tira_de_rotulos:
 
 ; ----------------------------------------------------------------------
 ; DATOS rotulos_de_la_pantalla_de_titulo: Diecinueve rotulos (fila, columna,
-;   texto cerrado por 0x00) y el 0xFF que cierra la tira: UP, HUDSON, BOMB,
-;   SOFT, LEFT, RIGHT, SPACE, HI@SCORE! y el marco que los rodea. Acaba
-;   clavado donde empieza el codigo de 0x4442
+;   texto cerrado por 0x00) y el 0xFF que cierra la tira. Dibujados desde la
+;   ROM dicen: BOMBER MAN, 200-10, BONUS ?PTS, EXIT, el mando con
+;   UP/DOWN/LEFT/RIGHT y BOMB/SPACE, HUDSON SOFT 1983, HI-SCORE y SCORE,
+;   PROGRAMMER:Y.TANAKA y T.SASAGAWA, y PUSH SPACE-KEY OR TORIGER, con la
+;   errata incluida
 ;   0x4323..0x4442  (287 bytes)
 DATA_rotulos_de_la_pantalla_de_titulo:
 	defb 00ah,005h,055h,050h,000h,00ah,017h,048h,055h,044h,053h,04fh,04eh,000h,00bh,005h	; 4323  ..UP...HUDSON...
