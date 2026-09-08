@@ -1,0 +1,124 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The cartridge — Bomber Man (Hudson Soft, 1983)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-CARTRIDGE.html" style=color:var(--tinta)>The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html">Findings</a><a href="IN-THE-EMULATOR.html">In the emulator</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/EL-CARTUCHO.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-cartridge">The cartridge</h1>
+<p>8 KB in page 1 (<code>0x4000</code>–<code>0x5FFF</code>), MSX1. It is the smallest cartridge in the series, and the first Hudson Soft one.</p>
+<h2 id="the-header-is-code">The header is code</h2>
+<p>An MSX cartridge starts with <code>AB</code>, the INIT address, and then STATEMENT, DEVICE, TEXT and six reserved bytes. Here INIT is <code>0x4004</code>, which is exactly where those fields should begin. Read as instructions:</p>
+<pre><code>4000  41 42        &quot;AB&quot;
+4002  04 40        INIT = 0x4004
+4004  31 00 F0     ld sp,0F000h
+4007  CD D1 4F     call 4FD1h        the RAM&#x27;s starting values
+400A  CD 62 50     call 5062h        the VDP
+400D  CD 4E 40     call 404Eh        the PSG, with its table right behind</code></pre>
+<p>Only the <b>first four bytes</b> of the cartridge are really a header. The other nine are the first four instructions, and there is not one byte left for STATEMENT, DEVICE or TEXT.</p>
+<h2 id="the-memory-map">The memory map</h2>
+<table><tr><th>where</th><th>what</th></tr><tr><td><code>0x4000</code>–<code>0x5FFF</code></td><td>the cartridge</td></tr><tr><td><code>0xE000</code>–<code>0xE2FF</code></td><td><b>the screen</b>, 768 bytes: what is seen</td></tr><tr><td><code>0xE300</code>–<code>0xE389</code></td><td>the variables</td></tr><tr><td><code>0xE38A</code>–<code>0xE689</code></td><td><b>the board</b>, another 768 bytes: what stays</td></tr><tr><td><code>0xF000</code></td><td>the stack</td></tr></table>
+<p>The two RAM screens are what organises the whole game, and they are explained in <a href="THE-CODE.html">The code</a>.</p>
+<h2 id="the-vdp">The VDP</h2>
+<p>The eight registers come from the table at <code>0x5144</code> and <code>monta_el_vdp</code> (<code>0x5062</code>) writes them out:</p>
+<table><tr><th>register</th><th>value</th><th>what it says</th></tr><tr><td>R0</td><td><code>0x02</code></td><td>SCREEN 2</td></tr><tr><td>R1</td><td><code>0xC2</code></td><td>16 KB, display on, 16×16 sprites</td></tr><tr><td>R2</td><td><code>0x06</code></td><td>name table at <code>0x1800</code></td></tr><tr><td>R3</td><td><code>0x7F</code></td><td>colour at <code>0x0000</code>, three banks of <code>0x800</code></td></tr><tr><td>R4</td><td><code>0x07</code></td><td>patterns at <code>0x2000</code>, three banks</td></tr><tr><td>R5</td><td><code>0x38</code></td><td>sprite attributes at <code>0x1C00</code></td></tr><tr><td>R6</td><td><code>0x07</code></td><td>sprite patterns at <code>0x3800</code></td></tr><tr><td>R7</td><td><code>0xF0</code></td><td>white ink on transparent background</td></tr></table>
+<p><b>The sprite registers are declared and never used.</b> Right after writing them, <code>0x507C</code> puts a <code>0xD0</code> into the first attribute — the &quot;no more sprites&quot; marker — and the cartridge <b>never touches the list again</b>. Everything that moves in this game is a name-table tile.</p>
+<h2 id="no-interrupt-and-no-sync">No interrupt and no sync</h2>
+<p><code>monta_el_vdp</code> puts a <code>ret</code> into H.TIMI (<code>0xFD9F</code>): the BIOS stops interfering on every interrupt. And the game <b>does not wait for the display sweep</b>: the pace is set by an empty loop of <code>0x500</code> turns at the end of <code>cierra_el_cuadro</code> (<code>0x46C8</code>). The screen is dumped when it is due, not when the VDP is safe.</p>
+<h2 id="the-three-graphics-blocks">The three graphics blocks</h2>
+<p>The format used by <code>carga_los_graficos_en_los_tres_tercios</code> (<code>0x5088</code>) is:</p>
+<pre><code>2 bytes   destination in VRAM; the third is added to the high byte
+1 byte    how many tiles, and ZERO means 256
+n*8       the patterns, which LDIRVM dumps in one go
+pairs     (colour, how many tiles) for FILVRM, closed by 0xFF</code></pre>
+<p>It is called three times with A = 0, 8 and <code>0x10</code>, which added to the destination&#x27;s high byte give the three thirds of SCREEN 2.</p>
+<table><tr><th>block</th><th>destination</th><th>tiles</th><th>what it brings</th></tr><tr><td><code>0x514C</code></td><td><code>0x0000</code></td><td>256</td><td>the whole title screen</td></tr><tr><td><code>0x5B26</code></td><td><code>0x0080</code></td><td>10</td><td>the letters of SCORE and BONUS</td></tr><tr><td><code>0x5B7C</code></td><td><code>0x0100</code></td><td>64</td><td>the digits, the monsters and the bomber</td></tr></table>
+<p><b>The three tile without a gap</b>: <code>0x514C</code> ends at <code>0x5B26</code>, which ends at <code>0x5B7C</code>, which ends at <code>0x5E38</code>. That is what proves the format is read correctly: if the tile count or the colour-run count were off by one byte, the next block would not start where it starts.</p>
+<h2 id="the-font-changes-halfway-through">The font changes halfway through</h2>
+<p>The big block loads the title screen&#x27;s 256 tiles. When the game starts, <code>0x4074</code> and <code>0x407A</code> load the two small ones <b>on top</b>: where the title screen has the big BOMBER MAN wordmark, the game puts the monsters.</p>
+<p>Everything from tile <code>0x90</code> up <b>is never overwritten</b>, and that is where the H, D, F, A, M and I needed by the bottom label come from. So the in-game caption is written with tiles from <b>three different blocks</b>, and that is why there is no way to read a text out of this cartridge without drawing it.</p>
+<p><img src="imagenes/casillas.png?v=678c5a24" alt="The title screen&#x27;s tiles"></p>
+<p><img src="imagenes/casillas_partida.png?v=1f875375" alt="The in-game tiles"></p>
+<h2 id="the-sound">The sound</h2>
+<p>Two formats, both made of (register, value) pairs closed by <code>0xFF</code>.</p>
+<p><b>The short one is embedded right behind the <code>call</code>.</b> <code>vuelca_la_tabla_del_psg</code> (<code>0x404E</code>) starts with a <code>pop hl</code>: it does not pick up a datum, it picks up the <b>return address</b>, which is where the table starts because the table is glued behind the <code>call</code>. When it is done it does <code>push hl / ret</code> and carries on executing <b>after</b> it. There are three such places, and they are the three ranges in <code>.nocode</code>.</p>
+<p><b>The long one is kept with one pointer per voice</b>, at <code>(0xE305)</code> and <code>(0xE307)</code>, and <code>sigue_los_dos_guiones_de_sonido</code> (<code>0x4025</code>) advances it one frame per turn. Here each <code>0xFF</code> closes the frame, not the script: the script ends with a double <code>0xFF</code>. There are five: the door fanfare, the prize picked up, the enemy blowing up, the bomber&#x27;s death and the footstep.</p>
+<footer><p><em>Bomber Man</em> was published by Hudson Soft for the MSX in 1983, on an 8 KB cartridge. All rights in the game remain with their holders. This is preservation, study and documentation work, and the cartridge image is not distributed.</p></footer></div>

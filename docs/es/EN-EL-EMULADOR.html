@@ -1,0 +1,142 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>En el emulador — Bomber Man (Hudson Soft, 1983)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Portada</a><a href="EMPEZAR.html">Empezar</a><a href="EL-JUEGO.html">El juego</a><a href="EL-CARTUCHO.html">El cartucho</a><a href="EL-CODIGO.html">El código</a><a href="HALLAZGOS.html">Hallazgos</a><a href="EN-EL-EMULADOR.html" style=color:var(--tinta)>En el emulador</a><a href="PREGUNTAS-ABIERTAS.html">Preguntas abiertas</a><a href="../IN-THE-EMULATOR.html" style="margin-left:auto;color:var(--oro)">English</a></nav>
+<h1 id="en-el-emulador">En el emulador</h1>
+<p>Tres medidas, las tres sobre la máquina y las tres reproducibles con <code>make</code>. Ninguna imagen de este repositorio sale del emulador: las capturas son <b>para comprobar</b>, no para publicar.</p>
+<h2 id="arrancarlo">Arrancarlo</h2>
+<pre><code>openmsx -machine Philips_VG_8020 -cart bomberman.rom</code></pre>
+<p>La BIOS del VG-8020 tarda más de cinco segundos en llamar a INIT. Antes de eso el cartucho ni siquiera ha copiado los valores de partida a la RAM, y un volcado hecho a los tres segundos no vale para nada.</p>
+<h2 id="el-cotejo-de-la-vram">El cotejo de la VRAM</h2>
+<pre><code>make cotejo</code></pre>
+<p>Arranca openMSX sin ventana, deja correr la portada, <b>pulsa el espacio con la matriz del teclado</b> (fila 8, bit 0, que es lo que lee GTTRIG en la entrada 0) y vuelca dos veces los 16 KB del VDP más 1792 bytes de RAM. Luego <code>tools/coteja_vram.py</code> los resta de la VRAM que monta <code>tools/vram.py</code>.</p>
+<pre><code>==================================================================
+ LA PORTADA, contra el volcado de t=8
+==================================================================
+  color                         0 de  6144  ok
+  patrones                      0 de  6144  ok
+  tabla de nombres              0 de   768  ok
+==================================================================
+ LA PARTIDA, contra el volcado de t=18
+==================================================================
+  color                         0 de  6144  ok
+  patrones                      0 de  6144  ok
+  marco y pilares               0 de   184  ok
+  ladrillos que rompen la regla      0 de    29  ok
+  premio y puerta bajo ladrillo      0 de     2  ok
+==================================================================
+ 0 diferencias en todo lo que no decide el azar.</code></pre>
+<p>Cada línea dice algo distinto:</p>
+<ul><li><b>Color y patrones</b> salen enteros de los tres bloques de gráficos, así que tienen que dar cero. Si no, el formato de <code>0x5088</code> está mal leído.</li><li><b>La tabla de nombres de la portada</b> también es determinista: los diecinueve rótulos, el rótulo grande y la fila de muestra.</li><li><b>La pantalla de la partida no se puede comparar casilla a casilla</b>, porque el reparto lo echa a suertes el registro R. Lo que sí se comprueba es todo lo demás: que el marco y los treinta y cinco pilares están exactamente donde <code>0x4DB7</code> los pone, que cada ladrillo del tablero cumple las reglas de <code>0x4E35</code>, y que el premio y la puerta están debajo de uno.</li></ul>
+<p><b>Y una trampa que costó una vuelta.</b> Comparar la tabla de nombres de la VRAM con la pantalla de la RAM no dice nada: <code>vuelca_la_pantalla</code> (<code>0x510E</code>) la vuelca <b>y la deja en blanco</b>, así que en cualquier instante la RAM está a medio montar mientras la VRAM guarda el último cuadro entero. El marco y los pilares hay que mirarlos en la tabla de nombres.</p>
+<p>Las veinte diferencias que salieron en la portada la primera vez estaban todas explicadas, y dos eran hallazgos:</p>
+<ul><li>Seis casillas del marcador y seis del récord, que el montaje no escribía.</li><li>El parpadeo del bicho y de la bomba, que en la VRAM es el del cuadro anterior al del volcado.</li><li><b>La bomba de muestra en el estado 4</b> y no en el 1, que es la reacción en cadena disparada por RAM sin estrenar. Está contada en <a href="HALLAZGOS.html">Hallazgos</a>.</li></ul>
+<h2 id="la-medida-del-alcance-de-la-explosion">La medida del alcance de la explosión</h2>
+<pre><code>make alcance</code></pre>
+<p>Del listado sale que la llama alcanza dos casillas de tablero por lado pero sólo gasta los ladrillos de la primera. Eso se puede leer, pero también se puede <b>medir</b>.</p>
+<p><code>tools/omsx_alcance.tcl</code> entra en la partida, vuelca el tablero, <b>escribe dos fichas de bomba a mano</b> en la lista de <code>0xE359</code> —estado 1, columna, fila y cuenta a cero, que es exactamente lo que deja <code>pon_una_bomba</code>— y vuelve a volcar el tablero ocho segundos después.</p>
+<p>Las dos casillas se eligieron leyendo el tablero de un volcado anterior: la emulación es determinista, así que con los mismos tiempos sale el mismo reparto.</p>
+<pre><code>  ladrillos antes  : 29
+  ladrillos despues: 27
+  bomba A: ladrillo a 1 casilla  por la derecha   en ( 5, 0) -&gt; CAE
+  bomba A: ladrillo a 1 casilla  por la abajo     en ( 4, 1) -&gt; CAE
+  bomba B: ladrillo a 2 casillas por la izquierda en (11, 0) -&gt; SIGUE EN PIE</code></pre>
+<h2 id="la-comprobacion-del-modo-de-bomba-automatica">La comprobación del modo de bomba automática</h2>
+<pre><code>make fase4</code></pre>
+<p>Fuerza la fase a 4 escribiendo <code>(0xE310)</code> y vuelca la tabla de nombres cuatro veces seguidas, para pillar el rótulo de abajo en las dos mitades de su parpadeo. Sale esto:</p>
+<pre><code>a fila 23: &#x27;#                           @:3#&#x27;
+b fila 23: &#x27;#                           @:3#&#x27;
+c fila 23: &#x27;#  BOMB AUTO SETTING STAGE  @:3#&#x27;
+d fila 23: &#x27;#  BOMB AUTO SETTING STAGE  @:3#&#x27;</code></pre>
+<p>En las demás fases esa fila lleva la firma <code> BOMBERMAN HUDSONSOFT 1983</code> y no parpadea.</p>
+<h2 id="trucos-para-mirarlo-por-dentro">Trucos para mirarlo por dentro</h2>
+<p>Ver el tablero, que es donde está el mapa de verdad:</p>
+<pre><code>debug read_block memory 0xE38A 768</code></pre>
+<p>Saltarse fases, que es lo que hace <code>make fase4</code>:</p>
+<pre><code>debug write memory 0xE310 4</code></pre>
+<p>Ver quién persigue: el byte <code>+3</code> de la primera ficha de enemigo.</p>
+<pre><code>debug read memory 0xE31F</code></pre>
+<p>Cuando vale cero, ese bicho va a por ti — y se pone rojo.</p>
+<p><b>Y la regla de oro para cualquier volcado de este cartucho</b>: la pantalla de la RAM (<code>0xE000</code>) está siempre a medio montar. Lo que hay que leer es la tabla de nombres de la VRAM (<code>0x1800</code>), que guarda el último cuadro entero.</p>
+<footer><p><em>Bomber Man</em> lo publico Hudson Soft para MSX en 1983, en un cartucho de 8 KB. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion, y la imagen del cartucho no se distribuye.</p></footer></div>

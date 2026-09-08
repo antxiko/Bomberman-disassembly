@@ -16,3 +16,16 @@
 0x4019   # sigue tras la tabla de 0x4010
 0x4149   # sigue tras la tabla de 0x4138
 0x4A06   # sigue tras la tabla de 0x49F3
+
+# --- CODIGO QUE NADIE ALCANZA. Son instrucciones, no datos, y se declaran como
+#     tales: el listado tiene que decir lo que hay en el cartucho, no solo lo
+#     que se ejecuta. Los tres primeros son rutinas enteras sin un solo `call`
+#     que las nombre -se comprobo buscando su direccion en los 8 KB- y el
+#     cuarto es un par de instrucciones que un `jr` se salta.
+0x4AC9   # `cp 089h / jr nz` que comprueba el pilar. El `jr $+6` de 0x4AC7 pasa
+         # por encima, asi que nunca se ejecuta; la casilla siguiente de la
+         # tira hace la misma comprobacion y la llama se para igual.
+0x4EF0   # `borra_una_casilla_de_tablero`, la version suelta de lo que hace
+         # 0x4A7A dentro de otra rutina.
+0x4F84   # la espera corta, hermana de la de 0x4F7B.
+0x50D6   # el registro 7 del VDP, que solo se pone una vez desde la tabla.

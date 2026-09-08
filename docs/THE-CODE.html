@@ -1,0 +1,162 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The code — Bomber Man (Hudson Soft, 1983)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html" style=color:var(--tinta)>The code</a><a href="FINDINGS.html">Findings</a><a href="IN-THE-EMULATOR.html">In the emulator</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/EL-CODIGO.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-code">The code</h1>
+<p>3,557 bytes of code and 4,635 of data, 200 routines, and one idea that explains everything: <b>the game has no map data structure</b>. It reads the tile number.</p>
+<h2 id="two-screens-in-ram-not-one">Two screens in RAM, not one</h2>
+<table><tr><th>where</th><th>what</th></tr><tr><td><code>0xE000</code>–<code>0xE2FF</code></td><td><b>the screen</b>: what is seen. Every frame it is dumped whole to VRAM with an LDIRVM and left blank</td></tr><tr><td><code>0xE38A</code>–<code>0xE689</code></td><td><b>the board</b>: what stays. The bricks, the flames while they last, the prize and the door once uncovered</td></tr></table>
+<p>Both have the same shape — 24 rows of 32 tiles — and the same cursor arithmetic: <code>pon_el_cursor</code> (<code>0x5128</code>) gives the address in the screen and <code>pon_el_cursor_en_el_tablero</code> (<code>0x4F6F</code>) the same tile in the board, by adding <code>0x38A</code>.</p>
+<p>That is where it comes from that <b>the wall and the pillars cannot be broken</b>: they only exist in the screen, <code>pinta_el_tablero</code> (<code>0x4DB7</code>) repaints them every frame, and they are not where the flames write. And the bricks only exist in the board.</p>
+<h2 id="what-each-tile-means">What each tile means</h2>
+<table><tr><th>tiles</th><th>what they are</th></tr><tr><td><code>0x00</code>–<code>0x09</code></td><td>the digits</td></tr><tr><td><code>0x0A</code>, <code>0x0E</code></td><td>the prize and the door, two by two</td></tr><tr><td><code>0x10</code>–<code>0x19</code></td><td>the letters of SCORE and BONUS</td></tr><tr><td><code>0x20</code></td><td>empty tile</td></tr><tr><td><code>0x22</code>–<code>0x2F</code></td><td>the enemy blowing up, seven frames</td></tr><tr><td><code>0x60</code>–<code>0x7B</code></td><td>the bomb: four sizes times two of blink</td></tr><tr><td><code>0x80</code>–<code>0x87</code></td><td>the brick crumbling, eight frames</td></tr><tr><td><code>0x88</code>, <code>0x89</code></td><td>the border wall and the fixed pillar</td></tr><tr><td><code>0x8A</code>–<code>0x8D</code></td><td>the bomber standing</td></tr><tr><td><code>0xA0</code>–<code>0xBF</code></td><td>the bomber walking: four directions times two steps</td></tr><tr><td><code>0xC0</code>–<code>0xCF</code></td><td>the enemy alive, four frames</td></tr><tr><td><code>0xE0</code>–<code>0xEF</code></td><td>the flame</td></tr></table>
+<p>And out of that come the three comparisons that repeat all over the listing:</p>
+<ul><li><code>cp 020h</code> — &quot;it is free&quot;</li><li><code>cp 0e0h</code> — &quot;there is a flame&quot;</li><li><code>cp 0c0h</code> — &quot;there is something that kills&quot;, which covers flames <b>and</b> monsters because they are laid out next to each other on purpose</li></ul>
+<h2 id="the-main-loop-is-the-game-s-index">The main loop is the game&#x27;s index</h2>
+<p><code>bucle_principal</code> (<code>0x40CC</code>): twenty calls in a row, one per system, in the order in which they paint over one another.</p>
+<pre><code>cierra_el_cuadro                 the counters, the dump and the sound
+copia_el_tablero_a_la_pantalla   the board on top of the screen
+pinta_el_tablero                 the frame and the pillars
+avanzan_las_bombas               the countdown
+pinta_las_bombas_y_las_llamas
+pon_una_bomba                    reads the trigger
+avanza_el_bombero                walks, or dies
+mueve_los_enemigos
+pinta_el_premio / pinta_la_puerta
+pinta_los_enemigos
+descubre_el_premio / descubre_la_puerta
+pinta_al_bombero                 on top of everything
+saca_los_enemigos_de_castigo
+pisa_la_puerta_o_el_premio
+descuenta_el_bonus
+pinta_el_marcador
+pinta_el_aviso_de_bomba_automatica</code></pre>
+<p>And three exits, which are the three ways a life ends: dead (<code>0xE37B</code>), door stepped on (<code>0xE316</code>) or stage cleared (<code>0xE318</code>).</p>
+<p><b>The order is the logic.</b> Each thing leaves its trace in the tiles for the next one to read, and that is why the bomber is painted <b>before</b> checking whether he has been killed: as he writes over the tile, he reads what was there.</p>
+<p>There are two cut-down versions of the same loop: <code>un_cuadro_sin_mando</code> (<code>0x4231</code>), without anything that attends to the player, and <code>un_cuadro_de_adorno</code> (<code>0x4253</code>), without enemies. They are used in the celebrations and at game over: everything is still seen moving, but you are no longer in charge.</p>
+<h2 id="everything-is-two-by-two">Everything is two by two</h2>
+<p><code>pinta_cuatro_casillas</code> (<code>0x4B7B</code>) writes A, A+1 on top and A+<code>0x10</code>, A+<code>0x11</code> below. The <code>0x1F</code> in the middle is 32 minus the <code>inc bc</code> already done, and the <code>0x0F</code> is <code>0x10</code> minus the <code>inc a</code>.</p>
+<p>That is how the bomber, the monster, the bomb, the flame, the prize, the door, the brick and the pillar are painted: <b>all of them</b>. And the real board, in two-by-two cells, is 15 columns by 11 rows inside a 32-by-24 screen.</p>
+<h2 id="how-a-stage-is-sown">How a stage is sown</h2>
+<p><code>siembra_la_fase</code> (<code>0x4E35</code>) keeps no map: it writes the bricks into the board and there they stay. The only thing noted separately is <b>where the first one fell</b> — hiding the prize — and <b>where the last one fell</b> — hiding the door — because <code>0x4EB1</code> only saves the prize the first time and the door is noted every time.</p>
+<p>The rules of the draw, in order:</p>
+<ol><li>two or more cells away from the bomber&#x27;s spot</li><li>of the two coordinates, <b>one odd and one even</b>. With both odd it would land on a pillar; with both even, on the cells the game always leaves clear</li><li>none of the eight in the table at <code>0x4EDF</code>, which are the neighbours of the four corners the enemies come out of</li></ol>
+<p>It does not check whether there is already a brick there, so two can land on the same cell and fewer than thirty-five come out. In the emulator dump there were <b>29</b>.</p>
+<h2 id="the-counter-with-a-ceiling">The counter with a ceiling</h2>
+<p>It is how <b>all</b> the game&#x27;s time is measured. <code>avanza_un_contador</code> (<code>0x46BE</code>) takes a pointer to a (count, ceiling) pair: it adds one and on reaching the ceiling goes back to zero. There are six pairs in a row from <code>0xE36F</code>, and anyone who wants to do something &quot;now and then&quot; checks whether their count is zero.</p>
+<table><tr><th>pair</th><th>ceiling</th><th>what it measures</th></tr><tr><td><code>0xE36F</code></td><td>4</td><td>the bomber&#x27;s step</td></tr><tr><td><code>0xE371</code></td><td>4</td><td>his death throes</td></tr><tr><td><code>0xE373</code></td><td>7</td><td>the enemy blowing up</td></tr><tr><td><code>0xE375</code></td><td>5</td><td>the enemies&#x27; step</td></tr><tr><td><code>0xE377</code></td><td>3</td><td>the bomb and the crumbling brick</td></tr><tr><td><code>0xE379</code></td><td>50</td><td>the bonus</td></tr></table>
+<p>All six ceilings come from the starting-values table at <code>0x4FDD</code> and are <b>never touched again</b>. That is the speed of the whole game.</p>
+<h2 id="the-two-lists">The two lists</h2>
+<p><b>Enemies</b> at <code>0xE31C</code>: eight seven-byte records, closed by the <code>0xFF</code> at <code>0xE354</code>.</p>
+<pre><code>+0  what it is doing: 0 free, 1 alive, 2..9 blowing up, 0xFF end of list
++1  column       +2  row
++3  drawing frame, counting 3, 2, 1, 0 and round again
++4  countdown to the next frame
++5  where it is heading: 0 left, 1 right, 2 up, 3 down
++6  unused</code></pre>
+<p>The <code>+3</code> does two things at once: it picks the drawing and it decides the behaviour. When it is zero the enemy <b>goes after the bomber</b>, and that is precisely the red frame.</p>
+<p><b>Bombs</b> at <code>0xE359</code>: five four-byte records.</p>
+<pre><code>+0  0 free, 1..4 the fuse, 5..12 the blast, 13 put it out
++1  column       +2  row       +3  count to the next frame</code></pre>
+<p>There is no other limit: the game has no &quot;bombs remaining&quot;.</p>
+<h2 id="the-blast-and-the-unrolled-loop">The blast, and the unrolled loop</h2>
+<p><code>pinta_la_explosion</code> (<code>0x4A8C</code>) paints the centre without asking and walks the four arms with the table at <code>0x4F8D</code>: <b>eight strips of four tiles</b>, one per side and per each of the two rows — or columns — it occupies. Four screen tiles per side are <b>two board cells</b>.</p>
+<p>The loop is unrolled on purpose, one copy per tile, because each stops on something different:</p>
+<table><tr><th>tile</th><th>stops on</th><th>which routine it uses</th></tr><tr><td>1st</td><td>the wall only</td><td><code>pinta_una_llama_y_gasta_el_ladrillo</code></td></tr><tr><td>2nd</td><td>brick, wall or pillar</td><td><code>pinta_una_llama_y_gasta_el_ladrillo</code></td></tr><tr><td>3rd</td><td>brick, wall or pillar</td><td><code>pinta_una_llama_sin_gastar</code></td></tr><tr><td>4th</td><td>brick, wall or pillar</td><td><code>pinta_una_llama_sin_gastar</code></td></tr></table>
+<p>The difference that matters: the first two <b>wear the brick down</b> — adding one to its drawing every three frames until it disappears — and the last two return <b>without writing</b> if what they find is a brick. Since the first two are the board cell right next to the bomb and the last two the one after, the result is that the blast <b>reaches two cells but only breaks the bricks in the first</b>.</p>
+<p>It is measured on the machine, not deduced: <a href="IN-THE-EMULATOR.html">In the emulator</a>.</p>
+<h2 id="a-register-trick-worth-keeping">A register trick worth keeping</h2>
+<p><code>si_toca_gasta_el_ladrillo</code> (<code>0x4B4E</code>) has to add one to A and has not one register free. It solves it like this:</p>
+<pre><code>push af           A onto the stack
+ex (sp),hl        and from the stack into H, which is where A now is
+ld a,(0e377h)     the three-frame count
+or a
+jr nz,...
+inc h             one more frame of crumbling
+ex (sp),hl        H back onto the stack
+pop af            and from there into A, already changed</code></pre>
+<h2 id="the-randomness">The randomness</h2>
+<p><code>numero_al_azar</code> (<code>0x4EF9</code>) feeds back <code>(0xE384)</code> with sixteen bits and mixes in the Z80&#x27;s <b>R register</b>. It returns the low byte.</p>
+<p>That mixing is not a decoration: if R advanced by the same amount between two draws, the series of cells collapses into three to five values and repeats. A test in the repository checks it with four different steps. On the machine that does not happen, because between two draws a varying number of instructions runs depending on how many times the draw had to be repeated.</p>
+<footer><p><em>Bomber Man</em> was published by Hudson Soft for the MSX in 1983, on an 8 KB cartridge. All rights in the game remain with their holders. This is preservation, study and documentation work, and the cartridge image is not distributed.</p></footer></div>

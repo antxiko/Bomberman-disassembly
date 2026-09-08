@@ -1,0 +1,116 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The game — Bomber Man (Hudson Soft, 1983)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html" style=color:var(--tinta)>The game</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html">Findings</a><a href="IN-THE-EMULATOR.html">In the emulator</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/EL-JUEGO.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-game">The game</h1>
+<p>Bomber Man, by Hudson Soft, 1983. Eight kilobytes. You drop a bomb, you run, the bomb breaks the bricks next to it, and under one of them is the door.</p>
+<p><img src="imagenes/titulo.png?v=8862dfef" alt="The title screen"></p>
+<p>The title screen, drawn from the ROM. At the top the big wordmark — not a stored picture but nine two-by-two letters painted by a loop — and below it a <b>legend</b> that explains the whole game: the bomber, the monster with what it is worth, the prize chest and the door.</p>
+<h2 id="the-rules-measured-on-the-code">The rules, measured on the code</h2>
+<table><tr><th>thing</th><th>value</th><th>where</th></tr><tr><td>board</td><td>15 columns × 11 rows</td><td><code>0x4E15</code></td></tr><tr><td>fixed pillars</td><td>35, where both coordinates are odd</td><td><code>0x4DB7</code></td></tr><tr><td>bricks per stage</td><td>35 draws, repeats allowed</td><td><code>0x4E65</code></td></tr><tr><td>lives</td><td>3</td><td><code>0x4069</code></td></tr><tr><td>starting bonus</td><td>1000, dropping by 10 every 50 frames</td><td><code>0x4080</code></td></tr><tr><td>bombs at once</td><td>5</td><td>list at <code>0xE359</code></td></tr><tr><td>enemies at once</td><td>8</td><td>list at <code>0xE31C</code></td></tr></table>
+<p>The score is shown <b>multiplied by ten</b>: <code>escribe_cinco_cifras_y_un_cero</code> (<code>0x4F29</code>) prints five digits and sticks a zero on the end. The caller strips that zero off the bonus, and into the gap it leaves fits the leading space of <code>&quot; STG:&quot;</code>.</p>
+<h2 id="how-many-enemies-and-how-fast">How many enemies, and how fast</h2>
+<p>The table at <code>0x4217</code>, two bytes per stage. From the sixth on, every stage plays with the fifth line.</p>
+<table><tr><th>stage</th><th>enemies</th><th>cadence</th></tr><tr><td>1</td><td>1</td><td><code>0x10</code></td></tr><tr><td>2</td><td>2</td><td><code>0x15</code></td></tr><tr><td>3</td><td>3</td><td><code>0x1A</code></td></tr><tr><td>4</td><td><b>2</b></td><td><code>0x1F</code></td></tr><tr><td>5 and on</td><td>4</td><td><code>0x24</code></td></tr></table>
+<p>Stage four has <b>fewer</b> enemies than stage three. It is the first auto-bomb stage, which may be why.</p>
+<h2 id="the-auto-bomb-stages">The auto-bomb stages</h2>
+<p>Every fourth stage the game stops asking for the trigger and <b>drops the bombs itself</b>. Two instructions decide it, <code>0x4922</code> and <code>0x4D3A</code>, with the same <code>and 003h</code> on the stage number: one disables the trigger check and the other turns on the label that announces it at the bottom, blinking sixteen frames on and eight off:</p>
+<pre><code>  BOMB AUTO SETTING STAGE</code></pre>
+<h2 id="how-you-die">How you die</h2>
+<p>Two ways, and <b>one single comparison</b> covers both. When painting the bomber, <code>pinta_una_casilla_del_bombero</code> (<code>0x4BEB</code>) looks at what was underneath: if it is <code>0xC0</code> or above, the death animation starts. Monsters live from <code>0xC0</code> to <code>0xCF</code> and flames from <code>0xE0</code> to <code>0xEF</code>, laid out next to each other on purpose.</p>
+<p>Because the bomber is painted <b>after</b> the enemies and the flames, what it reads is this very frame&#x27;s.</p>
+<p><img src="imagenes/agonia.png?v=aa9c2196" alt="The eight frames of dying"></p>
+<p>Eight frames, running backwards through the tile sheet: from <code>0x4E</code> down to <code>0x40</code>. The last one is not a drawing of the bomber, it is a green <b>OUT</b> on top of what is left of him.</p>
+<h2 id="the-monster-hunting-you-is-the-red-one">The monster hunting you is the red one</h2>
+<p>The same byte of the enemy&#x27;s record picks the drawing and decides the behaviour. When it is zero, the enemy <b>goes after the bomber</b> (<code>0x477B</code>); the rest of the time it wanders and changes its mind at random. And zero is precisely the red drawing frame.</p>
+<p><img src="imagenes/enemigos.png?v=1a803494" alt="The monster alive"></p>
+<p>The first two are frame 0. The other six, purple.</p>
+<h2 id="what-everything-is-worth">What everything is worth</h2>
+<ul><li><b>A monster</b>: <code>(drawing frame × 4) + 2</code>, plus a random number from 1 to 4. That is 3 to 18, or <b>30 to 180 points</b> on screen. The title screen&#x27;s legend, next to the monster, announces <code>200-10</code>.</li><li><b>The prize</b>: a random number between <code>0x10</code> and <code>0x7E</code>, always even and always with bit 4 set. Between <b>160 and 1260 points</b>.</li><li><b>The bonus</b>: on clearing the stage it is turned into score ten at a time, with a beep for each ten.</li></ul>
+<h2 id="the-two-ways-to-finish-a-stage">The two ways to finish a stage</h2>
+<p><b>Step on the door</b> (<code>0xE316</code>) or <b>kill everything</b> (<code>0xE318</code>). Only the second one collects the bonus.</p>
+<p>And there is a third that is not an ending but a punishment: if the bonus reaches zero, <code>se_agoto_el_bonus</code> (<code>0x449F</code>) <b>wipes the whole board</b>. The thirty-five bricks, the prize and the door vanish at once, and with both &quot;already found&quot; flags set they are never looked for again. The stage is left with no way out.</p>
+<p><img src="imagenes/partida.png?v=232b7829" alt="A game in progress"></p>
+<p>A game in progress, dealt with the cartridge&#x27;s three rules and painted with its routines. The bricks are <b>one of the possible deals</b>: the real one is decided by the Z80&#x27;s R register at the instant the trigger is pressed.</p>
+<footer><p><em>Bomber Man</em> was published by Hudson Soft for the MSX in 1983, on an 8 KB cartridge. All rights in the game remain with their holders. This is preservation, study and documentation work, and the cartridge image is not distributed.</p></footer></div>

@@ -34,7 +34,58 @@
 #     R7 = 0xF0   tinta blanca sobre fondo transparente
 #
 # Que 0x1C00 son los atributos lo confirma la instruccion de al lado: 0x507C
-# escribe un 0xD0 justo ahi, que es la marca de "no hay mas sprites".
+# escribe un 0xD0 justo ahi, que es la marca de "no hay mas sprites". Y ESO ES
+# TODO LO QUE HACE CON LOS SPRITES: el cartucho apaga la lista al arrancar y no
+# la vuelve a tocar. NO HAY UN SOLO SPRITE EN EL JUEGO; el bombero, los
+# enemigos, las bombas y las llamas son casillas de la tabla de nombres.
+#
+# DOS PANTALLAS EN LA RAM, NO UNA. Esto es lo que organiza el juego entero:
+#
+#     0xE000..0xE300   LA PANTALLA. Lo que se ve. Cada cuadro se vuelca entera
+#                      a la VRAM con un LDIRVM (0x510E) y se deja en blanco.
+#     0xE38A..0xE68A   EL TABLERO. Lo que PERMANECE: los ladrillos, las llamas
+#                      mientras duran, el premio y la puerta cuando ya estan
+#                      descubiertos. 0x4F63 lo copia encima de la pantalla al
+#                      empezar cada cuadro.
+#
+# Las dos tienen la misma forma -24 filas de 32 casillas- y la misma aritmetica
+# de cursor: 0x5128 da la direccion en la pantalla y 0x4F6F la misma casilla en
+# el tablero, sumandole 0x38A. Por eso hay rutinas que consultan las dos: el
+# muro y los pilares solo estan en la PANTALLA (los repinta 0x4DB7 cada cuadro),
+# mientras que los ladrillos solo estan en el TABLERO.
+#
+# EL TABLERO, EN CASILLAS DE DOS POR DOS. Todo lo que se mueve ocupa cuatro
+# casillas de pantalla, y todo se mueve de dos en dos, asi que el tablero de
+# verdad son 15 columnas por 11 filas. La conversion esta en 0x4E2A: columna
+# 2c+1 y fila 2b+1, o sea que la casilla (0,0) empieza en la fila 1 columna 1.
+# 0x4DB7 dibuja el marco y los pilares fijos, que caen donde las dos
+# coordenadas son impares (fila de pantalla 3, 7, 11, 15, 19 y columna 3, 7,
+# 11, 15, 19, 23, 27).
+#
+# EL SIGNIFICADO DE CADA CASILLA, que es lo que hace que el juego funcione sin
+# tener ni una estructura de datos del mapa:
+#
+#     0x00..0x09   las cifras
+#     0x0A 0x0B    el premio escondido (con 0x1A 0x1B debajo)
+#     0x0E 0x0F    la puerta          (con 0x1E 0x1F debajo)
+#     0x10..0x19   las letras de SCORE y BONUS
+#     0x20         casilla vacia
+#     0x21         los dos puntos
+#     0x22..0x3F   el enemigo reventando, siete cuadros de dos por dos
+#     0x30 0x31    la T y la G de STG
+#     0x60..0x7B   la bomba: cuatro tamanos por dos cuadros de parpadeo
+#     0x80..0x87   el ladrillo desmoronandose, ocho cuadros
+#     0x88         el muro del borde
+#     0x89         el pilar fijo
+#     0x8A..0x8D   el bombero quieto
+#     0x92..0x97   H, D, F, A, M, I -las letras que faltan para los rotulos-
+#     0xA0..0xBF   el bombero andando: cuatro sentidos por dos pasos
+#     0xC0..0xCF   el enemigo vivo, cuatro cuadros
+#     0xE0..0xEF   la llama
+#
+# Y de ahi salen las tres comparaciones que se repiten por todo el listado:
+# `cp 020h` es "esta libre", `cp 0e0h` es "hay una llama" y `cp 0c0h` es "hay
+# algo que mata" -llama o enemigo, que van seguidos a proposito-.
 #
 # DOS FORMATOS, Y LOS DOS SE RECORREN, NO SE SUPONEN.
 #
@@ -56,12 +107,53 @@
 #    cerrado por 0x00, y la tira entera cerrada por 0xFF. La unica que hay
 #    empieza en 0x4323 y acaba CLAVADA en 0x4442, con 19 rotulos.
 #
+# LA FUENTE CAMBIA A MITAD DE JUEGO. El bloque de 0x514C carga las 256 casillas
+# de la pantalla de titulo, y ahi las de 0x22 en adelante son el rotulo GRANDE
+# de BOMBER MAN. Al empezar la partida, 0x4074 y 0x407A cargan encima dos
+# bloques mas pequenos -0x5B26 en la casilla 0x10 y 0x5B7C en la 0x20- que
+# ponen ahi las letras de SCORE/BONUS, la T y la G, y los enemigos. Las de
+# 0x90 en adelante NO se sobreescriben nunca, y por eso una H o una M en el
+# marcador de la partida sale de la pantalla de titulo. Sin dibujarlo no hay
+# manera de leer un texto de este cartucho.
+#
 # EL SONIDO SE PROGRAMA CON TABLAS INCRUSTADAS. 0x404E hace `pop hl`, o sea que
 # usa la direccion de retorno como puntero: lee parejas (registro, valor), se
-# las pasa a 0x50CF -que hace `ld a,d` y llama a WRTPSG- y para en el 0xFF;
-# luego `push hl / ret` sigue DETRAS de la tabla. Hay tres sitios asi, y estan
-# declarados en el .nocode. La version con puntero en memoria, para los efectos
-# que duran, es 0x4025.
+# las pasa a 0x50CF y hace `push hl / ret` para seguir DETRAS de la tabla. Los
+# efectos que duran mas de un cuadro no caben ahi y se guardan aparte, con un
+# puntero por voz en (0xE305) y (0xE307).
+#
+# LAS VARIABLES, que son 0x90 bytes copiados de 0x4FDD por 0x4FD1:
+#
+#     0xE300  marcador          0xE302  record
+#     0xE304  ultimo disparo leido en la portada
+#     0xE305  puntero del guion de sonido de la voz A
+#     0xE307  el de la voz B
+#     0xE309  columna del bombero      0xE30A  su fila
+#     0xE30B  en que anda: 0 y 1 quieto, 2..5 andando, 6..13 muriendose
+#     0xE30C  parpadeo del paso        0xE30D  el bonus que queda
+#     0xE30F  vidas, que arrancan en TRES (0x4069), no en las cinco de la tabla
+#     0xE310  fase
+#     0xE311  hay que sacar cuatro enemigos de castigo
+#     0xE312  ya se han sacado         0xE313  enemigos que quedan vivos
+#     0xE314  el premio ya esta descubierto
+#     0xE315  la puerta ya esta descubierta
+#     0xE316  ha pisado la puerta      0xE317  cadencia de los enemigos
+#     0xE318  no queda ni un enemigo   0xE319  el bonus ya se agoto
+#     0xE31A  columna del castigo      0xE31B  su fila
+#     0xE31C  lista de enemigos: ocho fichas de siete bytes
+#     0xE358  parpadeo del enemigo     0xE359  lista de bombas: cinco de cuatro
+#     0xE36E  parpadeo de la bomba
+#     0xE36F/70  cuenta y tope del paso del bombero
+#     0xE371/72  los de su agonia      0xE373/74  los del enemigo reventando
+#     0xE375/76  los del paso del enemigo
+#     0xE377/78  los de la bomba y del ladrillo desmoronandose
+#     0xE379/7A  los del bonus, que baja de diez en diez cada cincuenta cuadros
+#     0xE37B  el bombero ha muerto     0xE37C/7D  el ultimo sitio sorteado
+#     0xE37E/7F/80  columna, fila y "esta puesto" del premio
+#     0xE381/82/83  lo mismo de la puerta
+#     0xE384  la semilla del azar      0xE386/87 y 0xE388/89  el parpadeo del
+#                                      aviso de bomba automatica
+#     0xE38A  el tablero, 768 bytes
 
 # ======================================================================
 # LA CABECERA
@@ -69,36 +161,60 @@
 D 0x4000 0x4004 cabecera_del_cartucho  "AB" y la direccion de INIT (0x4004), que cae dentro de la propia cabecera: lo que deberian ser STATEMENT, DEVICE y TEXT ya es codigo
 F 0x4000 4
 
+# ======================================================================
+# EL ARRANQUE
+# ======================================================================
 B 0x4004 ----------------------------------------------------------------------
 B 0x4004 EL ARRANQUE, que empieza DENTRO de la cabecera del cartucho.
 B 0x4004 La BIOS llama aqui tras encontrar el "AB" de 0x4000. Lo primero es
-B 0x4004 la pila, y luego tres llamadas: la RAM a cero, el VDP y el PSG.
+B 0x4004 la pila, y luego tres llamadas: los valores de partida de la RAM,
+B 0x4004 el VDP y el PSG. No vuelve nunca.
 B 0x4004 ----------------------------------------------------------------------
 L 0x4004 INIT
 C 0x4004 la pila, arriba del todo de la RAM
-C 0x4007 borra la RAM del juego
+C 0x4007 las variables del juego, con sus valores de partida
 C 0x400a los ocho registros del VDP y la pantalla
 C 0x400d y el PSG, con la tabla que va aqui detras
+
+B 0x4019 ----------------------------------------------------------------------
+B 0x4019 Sigue AQUI el arranque, detras de la tabla del PSG de 0x4010: es lo
+B 0x4019 que hace el `push hl / ret` de 0x405C. Deja el marcador y el record
+B 0x4019 a cero y se va a la portada, que es lo unico que ve INIT.
+B 0x4019 ----------------------------------------------------------------------
+L 0x4019 borra_el_marcador_y_a_la_portada
 C 0x4019 el marcador y el record, a cero
-C 0x401c (0xE302), el marcador
-C 0x401f (0xE300), el record
+C 0x401c (0xE302), el record
+C 0x401f (0xE300), el marcador
 C 0x4022 y a la pantalla de titulo
 
+# ======================================================================
+# EL SONIDO
+# ======================================================================
 B 0x4025 ----------------------------------------------------------------------
 B 0x4025 Los efectos que duran mas de un cuadro: en vez de llevar la tabla
 B 0x4025 incrustada, se guarda por donde va en (0xE305) y (0xE307), una
-B 0x4025 pareja de punteros por voz. El 0xFF cierra la tabla igual.
+B 0x4025 pareja de punteros por voz. El 0xFF cierra la tabla igual, pero
+B 0x4025 aqui marca el final del CUADRO, no el del guion: el guion se acaba
+B 0x4025 cuando el primer byte de un cuadro ya es 0xFF, o sea con un 0xFF
+B 0x4025 doble. Se llama una vez por cuadro desde 0x46C8.
 B 0x4025 ----------------------------------------------------------------------
 L 0x4025 sigue_los_dos_guiones_de_sonido
 C 0x4025 el primero, en (0xE305)
-C 0x402c y el segundo, en (0xE307)
+C 0x4029 y el mismo codigo otra vez, pero cayendo dentro
+C 0x402c el segundo, en (0xE307)
 L 0x4030 sigue_un_guion_de_sonido
 C 0x4030 por donde iba
-C 0x4036 con 0xFF no queda nada
+C 0x4036 con 0xFF no queda nada: el guion se ha acabado
+C 0x4038 y se apunta el puntero sin tocarlo, o sea que se queda ahi
+L 0x403a la_pareja_siguiente_del_guion
 C 0x403a el registro
+C 0x403b el mismo byte otra vez, para poder probarlo
+C 0x403d con 0xFF se acaba el CUADRO, no el guion
 C 0x4040 y el valor
 C 0x4041 al PSG
-C 0x4047 se apunta por donde se ha quedado
+C 0x4044 a la pareja siguiente
+L 0x4047 apunta_donde_se_quedo
+C 0x4047 se apunta por donde se ha quedado, que es el 0xFF o el byte de despues
 
 B 0x404e ----------------------------------------------------------------------
 B 0x404e LA TABLA DE REGISTROS DEL PSG QUE VA DETRAS DEL `call`.
@@ -110,23 +226,329 @@ B 0x404e Los tres sitios que la usan estan en el .nocode.
 B 0x404e ----------------------------------------------------------------------
 L 0x404e vuelca_la_tabla_del_psg
 C 0x404e la direccion de retorno ES el puntero a la tabla
+C 0x404f al primer registro, saltandose el `dec d` de la vuelta
+L 0x4051 la_pareja_siguiente_de_la_tabla
 C 0x4051 deshace el `inc d` de la comprobacion
 C 0x4052 el valor
 C 0x4053 al PSG
+C 0x4056 a la pareja siguiente
+L 0x4057 lee_el_registro
 C 0x4057 el registro
 C 0x4059 con 0xFF se acabo
 C 0x405c y se sigue DETRAS de la tabla
 
 D 0x4010 0x4019 tabla_del_psg_del_arranque  Cuatro parejas (registro, valor) y el 0xFF que cierra: el registro 7 a 0xA8 -el mezclador- y los tres volumenes a cero. O sea, apagar el sonido al arrancar
 F 0x4010 2
-D 0x4138 0x4149 tabla_del_psg_1  Ocho parejas y el 0xFF: el tono de la voz A (0x020A), los volumenes, y el periodo y la forma de la envolvente (0x0002 y 9)
-F 0x4138 2
-D 0x49f3 0x4a06 tabla_del_psg_2  Nueve parejas y el 0xFF: el tono de la voz B, el ruido a 0x1F y la envolvente otra vez
-F 0x49f3 2
 
 # ======================================================================
-# LOS ROTULOS
+# LA PARTIDA
 # ======================================================================
+B 0x405e ----------------------------------------------------------------------
+B 0x405e EMPIEZA UNA PARTIDA. Se llega desde la portada, en cuanto se suelta
+B 0x405e el disparo. Pone el marcador a cero, cinco vidas y la fase 1, y
+B 0x405e carga los dos bloques de graficos de la partida ENCIMA de los de la
+B 0x405e portada: el de 0x5B26 mete SCOREBONUS en las casillas 0x10..0x19 y
+B 0x405e el de 0x5B7C la T, la G, los enemigos y el bombero en 0x20..0x5F.
+B 0x405e Lo de 0x90 arriba se queda como estaba, y de ahi salen la H, la D,
+B 0x405e la F, la A, la M y la I que hacen falta abajo.
+B 0x405e ----------------------------------------------------------------------
+L 0x405e empieza_una_partida
+C 0x405e el marcador a cero; el record NO se toca
+C 0x4064 la fase 1
+C 0x4069 TRES vidas, no las cinco que dice la tabla de valores de partida
+C 0x406e borra la pantalla de la RAM
+C 0x4071 la vuelca a la VRAM y la deja otra vez en blanco
+C 0x4074 las letras de SCORE y BONUS
+C 0x407a las cifras, los enemigos y el bombero
+
+B 0x4080 ----------------------------------------------------------------------
+B 0x4080 MONTA UNA FASE. Aqui se vuelve tambien despues de cada vida
+B 0x4080 perdida, asi que todo lo que sea de la fase y no de la partida se
+B 0x4080 pone a cero justo aqui: la puerta, el premio, los avisos y las
+B 0x4080 banderas de "ya lo he encontrado".
+B 0x4080 ----------------------------------------------------------------------
+L 0x4080 monta_la_fase
+C 0x4080 el bonus arranca en 1000, y se ensena con cinco cifras
+C 0x4086 y todo lo demas de la fase, a cero:
+C 0x4087 el bonus no se ha agotado
+C 0x408a quedan enemigos
+C 0x408d el premio no esta puesto
+C 0x4090 ni la puerta
+C 0x4093 el castigo no se ha cobrado
+C 0x4096 ni esta pendiente
+C 0x4099 el premio no esta descubierto
+C 0x409c ni la puerta
+C 0x409f no la ha pisado
+C 0x40a2 y el bombero esta vivo
+C 0x40a5 quieto
+C 0x40aa cuantos enemigos y a que ritmo, segun la fase
+C 0x40ad la lista de enemigos, en blanco
+C 0x40b0 y se reparten los de esta fase por las cuatro esquinas
+C 0x40b3 la lista de bombas, en blanco
+C 0x40b6 la pantalla en blanco
+C 0x40b9 volcada y otra vez en blanco
+C 0x40bc el tablero tambien, entero a casillas vacias
+C 0x40bf el marco y los pilares
+C 0x40c2 y los treinta y cinco ladrillos, con el premio y la puerta debajo
+C 0x40c5 `siembra_la_fase` los deja puestos, y aqui se quitan otra vez:
+C 0x40c6 el premio, tapado
+C 0x40c9 y la puerta. Los redescubren 0x45CE y 0x465A al reventar su ladrillo
+
+B 0x40cc ----------------------------------------------------------------------
+B 0x40cc EL BUCLE PRINCIPAL, y el indice del juego entero: VEINTE llamadas
+B 0x40cc seguidas, una por sistema, en el orden en que se pintan encima
+B 0x40cc unas de otras. Primero se cierra el cuadro anterior y se copia el
+B 0x40cc tablero encima de la pantalla, luego el marco, y a partir de ahi
+B 0x40cc cada cosa deja su rastro en las casillas para que la siguiente lo
+B 0x40cc lea: por eso el bombero se pinta ANTES de mirar si le han matado.
+B 0x40cc Se sale por tres puertas, que son las tres formas de acabar una
+B 0x40cc vida: muerto (0xE37B), puerta pisada (0xE316) o fase limpia
+B 0x40cc (0xE318).
+B 0x40cc ----------------------------------------------------------------------
+L 0x40cc bucle_principal
+C 0x40cc cierra el cuadro: los contadores, el volcado y el sonido
+C 0x40cf copia el tablero encima de la pantalla
+C 0x40d2 el marco y los pilares, que solo viven en la pantalla
+C 0x40d5 las bombas avanzan su cuenta atras
+C 0x40d8 y se pintan, con sus llamas
+C 0x40db mira si hay que poner una bomba
+C 0x40de el bombero avanza su paso, o su agonia
+C 0x40e1 los enemigos andan
+C 0x40e4 el premio, si esta descubierto
+C 0x40e7 la puerta, si lo esta
+C 0x40ea los enemigos se pintan
+C 0x40ed mira si acaba de quedar el premio a la vista
+C 0x40f0 y lo mismo con la puerta
+C 0x40f3 el bombero, encima de todo
+C 0x40f6 los cuatro enemigos de castigo, si tocan
+C 0x40f9 mira si pisa la puerta o recoge el premio
+C 0x40fc y el bonus, que baja de diez en diez
+C 0x40ff el marcador de arriba
+C 0x4102 y el rotulo de abajo
+C 0x4105 el aviso de bomba automatica, si la fase lo lleva
+C 0x4108 muerto?
+C 0x410f ha pisado la puerta?
+C 0x4116 no queda ni un enemigo?
+C 0x411a nada de eso: otro cuadro
+
+B 0x411c ----------------------------------------------------------------------
+B 0x411c FASE LIMPIA: no queda ni un enemigo. Veinte cuadros de respiro y a
+B 0x411c cambiar el bonus por puntos, de diez en diez, con un pitido por
+B 0x411c cada diez. Se hace con `un_cuadro_sin_mando`, que es el bucle
+B 0x411c principal sin lo que atiende al jugador: se sigue viendo todo
+B 0x411c moverse pero ya no se manda.
+B 0x411c ----------------------------------------------------------------------
+L 0x411c limpia_la_fase
+C 0x411c veinte cuadros mirando
+L 0x411f otro_cuadro_de_respiro
+C 0x4120 un cuadro, sin hacer caso al mando
+C 0x412a lo que queda de bonus
+C 0x412f si ya es cero, no hay nada que cobrar
+L 0x4131 cobra_diez_del_bonus
+C 0x4132 un cuadro de adorno, mas corto todavia
+C 0x4135 y el pitido, con la tabla del PSG pegada detras
+
+B 0x4149 ----------------------------------------------------------------------
+B 0x4149 Sigue aqui, detras de la tabla del PSG de 0x4138. Diez menos de
+B 0x4149 bonus y uno mas de marcador; como el marcador se ensena
+B 0x4149 multiplicado por diez, cada vuelta son diez puntos de verdad.
+B 0x4149 ----------------------------------------------------------------------
+C 0x4149 recupera el puntero que dejo el `push hl`
+C 0x414a diez menos de bonus
+C 0x4153 y uno mas de marcador, que en pantalla son diez
+C 0x415c queda bonus?
+C 0x4161 dos cuadros mas y a la fase siguiente
+
+B 0x4167 ----------------------------------------------------------------------
+B 0x4167 A LA FASE SIGUIENTE, y de paso a los dibujos que le tocan. La tabla
+B 0x4167 de 0x419B tiene DIECISEIS punteros a bloques de graficos, y de ahi
+B 0x4167 se sacan DOS por fase: el `and 003h` decide si se lee la primera
+B 0x4167 mitad de la tabla o la segunda, y el `and 00Ch` cual de las cuatro
+B 0x4167 parejas. Las cuatro primeras fases no cambian nada, que es lo que
+B 0x4167 dice el `and 0FCh`.
+B 0x4167 ----------------------------------------------------------------------
+L 0x4167 a_la_fase_siguiente
+C 0x4167 una fase mas
+C 0x416f cada cuatro fases
+C 0x4171 la primera mitad de la tabla
+C 0x4174 o la segunda, que es lo que hace 0x4197
+C 0x4178 las cuatro primeras fases se juegan con los mismos dibujos
+C 0x417d cual de las cuatro parejas
+C 0x4183 el primer bloque de la pareja
+C 0x4189 cargado en los tres tercios
+C 0x418d y el segundo
+C 0x4194 a montar la fase, sin tocar vidas ni marcador
+L 0x4197 la_otra_mitad_de_la_tabla
+C 0x4197 la segunda mitad de la tabla de punteros
+
+D 0x4138 0x4149 tabla_del_psg_1  Ocho parejas y el 0xFF: el tono de la voz A (0x020A), los volumenes, y el periodo y la forma de la envolvente (0x0002 y 9). Es el pitido de cada diez puntos de bonus
+F 0x4138 2
+
+D 0x419b 0x41bb punteros_de_los_dibujos  Dieciseis palabras, todas dentro de 0x5E38..0x5F9A. 0x4171 las indexa con el numero de fase: la mitad de arriba o la de abajo segun `and 003h`, y la pareja segun `and 00Ch`
+F 0x419b w
+
+B 0x41bb ----------------------------------------------------------------------
+B 0x41bb HA PISADO LA PUERTA. Diez cuadros de fanfarria -el guion de sonido
+B 0x41bb de 0x41D0, que sube el tono de la voz B- y a la fase siguiente.
+B 0x41bb No se cobra el bonus: eso solo pasa limpiando la fase.
+B 0x41bb ----------------------------------------------------------------------
+L 0x41bb sale_por_la_puerta
+C 0x41bb diez vueltas
+C 0x41bd la fanfarria, en la voz B
+L 0x41c3 otro_cuadro_de_fanfarria
+C 0x41c4 el argumento no lo usa nadie: `un_cuadro_sin_mando` no toca HL
+C 0x41c7 un cuadro mirando
+C 0x41cd y a la fase siguiente
+
+D 0x41d0 0x41eb guion_de_sonido_de_la_puerta  Ocho cuadros de parejas (registro, valor) separados por 0xFF y cerrados por un 0xFF doble; lo instala 0x41BD en (0xE307). Sube el tono de la voz B de 0xEE a 0x7E y apaga la voz C
+
+B 0x41eb ----------------------------------------------------------------------
+B 0x41eb HA MUERTO. Una espera larga -0x5000 vueltas en vacio- y una vida
+B 0x41eb menos. Si quedan, se vuelve a montar la fase entera: los ladrillos
+B 0x41eb se sortean otra vez, y con ellos la puerta y el premio.
+B 0x41eb ----------------------------------------------------------------------
+L 0x41eb pierde_una_vida
+C 0x41eb una espera larga, para que se vea la agonia
+C 0x41ee una vida menos
+C 0x41f6 si no quedan, se acabo la partida
+C 0x41f8 y si quedan, la misma fase desde el principio
+
+B 0x41fb ----------------------------------------------------------------------
+B 0x41fb CUANTOS ENEMIGOS Y A QUE RITMO, segun la fase, de la tabla de
+B 0x41fb 0x4217. De la sexta en adelante todas juegan con lo mismo, que es
+B 0x41fb lo que dice el `cp 006h`.
+B 0x41fb ----------------------------------------------------------------------
+L 0x41fb pon_los_enemigos_de_la_fase
+C 0x41fb la fase
+C 0x41fe de la sexta en adelante
+C 0x4202 se juega con la quinta linea de la tabla
+L 0x4204 la_linea_de_la_fase
+C 0x4204 la primera fase es la linea 0
+C 0x4205 dos bytes por linea
+C 0x420e cuantos enemigos
+C 0x4213 y su cadencia
+
+D 0x4217 0x4221 enemigos_por_fase  Cinco parejas (cuantos enemigos, cadencia) que lee 0x41FB con la fase menos uno: 1 y 0x10, 2 y 0x15, 3 y 0x1A, 2 y 0x1F, 4 y 0x24. La cuarta fase tiene MENOS enemigos que la tercera, pero mas lentos
+F 0x4217 2
+
+B 0x4221 ----------------------------------------------------------------------
+B 0x4221 SE ACABO LA PARTIDA. Cinco cuadros mas para que se vea el ultimo
+B 0x4221 golpe y a la portada. El marcador NO se borra aqui: lo borra
+B 0x4221 0x4019 al empezar la siguiente, y por eso la portada sigue
+B 0x4221 ensenando lo que se hizo.
+B 0x4221 ----------------------------------------------------------------------
+L 0x4221 fin_de_la_partida
+C 0x4221 cinco cuadros
+L 0x4224 otro_cuadro_de_final
+C 0x4225 sin hacer caso al mando
+C 0x422e y a la portada
+
+B 0x4231 ----------------------------------------------------------------------
+B 0x4231 UN CUADRO SIN MANDO: el bucle principal recortado. Faltan las
+B 0x4231 llamadas que leen el mando o cambian de fase -poner bombas, mover
+B 0x4231 al bombero, el bonus, la puerta-, asi que todo se sigue viendo
+B 0x4231 moverse pero ya no se puede jugar. Es lo que se usa en las
+B 0x4231 celebraciones y en el fin de partida.
+B 0x4231 ----------------------------------------------------------------------
+L 0x4231 un_cuadro_sin_mando
+C 0x4231 cierra el cuadro anterior
+C 0x4234 el tablero encima de la pantalla
+C 0x4237 el marco
+C 0x423a las bombas y sus llamas
+C 0x423d el premio
+C 0x4240 la puerta
+C 0x4243 los enemigos
+C 0x4246 el bombero
+C 0x4249 las bombas avanzan
+C 0x424c el marcador
+C 0x424f y el rotulo de abajo
+
+B 0x4253 ----------------------------------------------------------------------
+B 0x4253 UN CUADRO DE ADORNO: lo mismo, pero sin enemigos y sin que las
+B 0x4253 bombas avancen. Es el que se usa mientras se cobra el bonus, para
+B 0x4253 que la pantalla no se quede congelada pero tampoco pase nada.
+B 0x4253 ----------------------------------------------------------------------
+L 0x4253 un_cuadro_de_adorno
+C 0x4253 cierra el cuadro anterior
+C 0x4256 el tablero encima de la pantalla
+C 0x4259 el marco
+C 0x425c el premio
+C 0x425f la puerta
+C 0x4262 el bombero
+C 0x4265 el marcador
+C 0x4268 y el rotulo de abajo
+
+# ======================================================================
+# LA PORTADA
+# ======================================================================
+B 0x426c ----------------------------------------------------------------------
+B 0x426c EL DISPARO DE LA PORTADA. Se llama con A = lo que se acaba de leer
+B 0x426c y HL apuntando a (0xE304), que es lo que se leyo la vez anterior.
+B 0x426c Guarda lo nuevo; si no hay nada pulsado, se vuelve. Y si lo hay,
+B 0x426c se espera A QUE SE SUELTE y entonces se hace `pop hl` para tirar
+B 0x426c la direccion de retorno y saltar a la partida sin volver.
+B 0x426c ----------------------------------------------------------------------
+L 0x426c mira_el_disparo_de_la_portada
+C 0x426c apunta lo que se acaba de leer
+C 0x426d si no hay nada pulsado, a seguir en la portada
+C 0x426f y si lo hay, se espera a que lo suelte
+C 0x4275 tira la direccion de retorno: de aqui no se vuelve
+C 0x4276 y a jugar
+
+B 0x4279 ----------------------------------------------------------------------
+B 0x4279 LA PORTADA. Carga el bloque grande de graficos -las 256 casillas
+B 0x4279 de 0x514C, que traen la fuente y el rotulo GRANDE- y deja puestos
+B 0x4279 un enemigo y una bomba de muestra. El 0xFF de (0xE304) es para que
+B 0x4279 la primera lectura del disparo no cuente como pulsacion.
+B 0x4279 ----------------------------------------------------------------------
+L 0x4279 la_portada
+C 0x4279 pantalla en blanco
+C 0x427c volcada y en blanco otra vez
+C 0x427f las 256 casillas de la portada
+C 0x4285 un enemigo de muestra, en la fila 7
+C 0x4288 y una bomba, en la fila 10
+C 0x428b nada leido todavia: 0xFF no lo devuelve nunca `lee_el_disparo`
+
+B 0x4290 ----------------------------------------------------------------------
+B 0x4290 EL BUCLE DE LA PORTADA. Se repinta entera cada cuadro, de arriba
+B 0x4290 abajo: seis filas de ladrillo, el rotulo grande encima, los
+B 0x4290 diecinueve rotulos pequenos, el marcador y el record, y el
+B 0x4290 bombero, el premio y la puerta de muestra. Los enemigos y las
+B 0x4290 bombas se PINTAN pero no se mueven: aqui no se llama a lo que los
+B 0x4290 hace avanzar, asi que se quedan parpadeando en el sitio.
+B 0x4290 ----------------------------------------------------------------------
+L 0x4290 bucle_de_la_portada
+C 0x4290 el disparo
+C 0x4293 contra lo que se leyo la vez anterior
+C 0x4297 si ha cambiado, a ver si toca empezar
+C 0x429a cierra el cuadro
+C 0x429d las seis filas de arriba
+C 0x42a0 0xC0 casillas, o sea seis filas
+C 0x42a2 de ladrillo
+L 0x42a4 otra_casilla_de_ladrillo
+C 0x42a7 hasta acabar las seis filas
+C 0x42aa la tira del rotulo grande
+L 0x42ad pinta_el_rotulo_grande
+C 0x42ad con 0xFF se acabo
+C 0x42b2 la casilla de arriba a la izquierda
+C 0x42b4 la fila
+C 0x42b6 y la columna
+C 0x42b8 pone el cursor
+C 0x42be y suelta las cuatro casillas
+C 0x42c5 los diecinueve rotulos de 0x4323
+C 0x42cb el record, en la fila 8
+C 0x42d4 y el marcador, en la fila 9
+C 0x42dd el bombero de muestra, fila 7 columna 1
+C 0x42e5 la bomba, que solo se pinta
+C 0x42e8 y el enemigo, igual
+C 0x42eb cada cuatro cuadros
+C 0x42f1 cambia el paso de la bomba
+C 0x42f9 y el del enemigo
+L 0x4301 pinta_el_premio_y_la_puerta_de_muestra
+C 0x4301 el premio, fila 7 columna 17
+C 0x4309 y la puerta, fila 7 columna 25
+C 0x4311 otro cuadro
+
 B 0x4314 ----------------------------------------------------------------------
 B 0x4314 Pinta una tira de rotulos: por cada uno, la fila y la columna y
 B 0x4314 luego el texto cerrado por 0x00. La tira entera acaba en 0xFF.
@@ -137,23 +559,1424 @@ C 0x4317 la fila
 C 0x4319 y la columna
 C 0x431b pone el cursor
 C 0x431e y suelta el texto hasta el 0x00
+C 0x4321 y a por el rotulo siguiente
 
+D 0x4323 0x4442 rotulos_de_la_pantalla_de_titulo  Diecinueve rotulos (fila, columna, texto cerrado por 0x00) y el 0xFF que cierra la tira. Dibujados desde la ROM dicen: BOMBER MAN, 200-10, BONUS ?PTS, EXIT, el mando con UP/DOWN/LEFT/RIGHT y BOMB/SPACE, HUDSON SOFT 1983, HI-SCORE y SCORE, PROGRAMMER:Y.TANAKA y T.SASAGAWA, y PUSH SPACE-KEY OR TORIGER, con la errata incluida
+
+B 0x4442 ----------------------------------------------------------------------
+B 0x4442 La bomba de muestra de la portada: la primera ficha de la lista,
+B 0x4442 encendida, en la fila 10 columna 14.
+B 0x4442 ----------------------------------------------------------------------
+L 0x4442 pon_la_bomba_del_titulo
+C 0x4442 la lista, en blanco
+C 0x4445 la primera ficha
+C 0x4449 encendida
+C 0x444d columna 14
+C 0x4451 fila 10
+
+B 0x4456 ----------------------------------------------------------------------
+B 0x4456 Y el enemigo de muestra: la primera ficha de la lista de enemigos,
+B 0x4456 viva, en la fila 7 columna 10, con el cuadro de dibujo 1.
+B 0x4456 ----------------------------------------------------------------------
+L 0x4456 pon_el_enemigo_del_titulo
+C 0x4456 la lista, en blanco
+C 0x4459 la primera ficha
+C 0x445d viva
+C 0x4461 columna 10
+C 0x4465 fila 7
+C 0x4469 y el cuadro de dibujo
+
+D 0x446e 0x448a rotulo_grande_de_la_portada  Nueve ternas (casilla, fila, columna) y el 0xFF que cierra, que lee 0x42AD. Cada casilla se pinta con sus tres vecinas, o sea una letra de dos por dos: 0x22 B, 0x24 O, 0x26 M, 0x22 B, 0x28 E, 0x2A R y luego 0x26 M, 0x2C A, 0x2E N. Es el rotulo BOMBER MAN grande de la fila 2, y las casillas que usa son las mismas que en la partida son el enemigo reventando
+F 0x446e 3
+
+# ======================================================================
+# EL BONUS, EL PREMIO Y LA PUERTA
+# ======================================================================
+B 0x448a ----------------------------------------------------------------------
+B 0x448a EL BONUS, que baja de diez en diez cada cincuenta cuadros. Cuando
+B 0x448a llega a cero no pasa nada bueno: se BORRA EL TABLERO ENTERO. Los
+B 0x448a treinta y cinco ladrillos, el premio y la puerta desaparecen de
+B 0x448a golpe, y con las dos banderas de "ya esta descubierto" puestas a
+B 0x448a uno ya no se vuelven a buscar. La fase se queda sin salida y solo
+B 0x448a se puede terminar matandolos a todos.
+B 0x448a ----------------------------------------------------------------------
+L 0x448a descuenta_el_bonus
+C 0x448a la cuenta de cincuenta cuadros
+C 0x448f lo que queda
+C 0x4492 si ya es cero, se acabo
+C 0x4496 y si no, diez menos
+C 0x4499 el `or a` de dos lineas antes ha dejado el acarreo a cero
+L 0x449f se_agoto_el_bonus
+C 0x449f esto solo pasa una vez
+C 0x44a4 el tablero entero a casillas vacias: adios ladrillos
+C 0x44a7 y apuntado, para no repetirlo
+C 0x44ac la puerta, quitada
+C 0x44b0 y el premio
+C 0x44b3 pero marcados como YA descubiertos
+C 0x44b8 para que 0x45CE y 0x465A no vuelvan a buscarlos
+C 0x44bc y las dos coordenadas que quedaban, a cero
+
+B 0x44c3 ----------------------------------------------------------------------
+B 0x44c3 MIRA SI PISA LA PUERTA O RECOGE EL PREMIO. Las dos cosas se hacen
+B 0x44c3 comparando la casilla del bombero con la de cada una, no leyendo
+B 0x44c3 lo que hay pintado. La puerta acaba la fase; el premio da entre
+B 0x44c3 0x10 y 0x7E de marcador -o sea entre 160 y 1260 puntos- sorteados
+B 0x44c3 al azar, siempre pares y siempre con el bit 4 puesto.
+B 0x44c3 ----------------------------------------------------------------------
+L 0x44c3 pisa_la_puerta_o_el_premio
+C 0x44c3 C la columna del bombero y B su fila
+C 0x44c7 la puerta esta puesta?
+C 0x44cd su fila
+C 0x44d3 y su columna
+C 0x44d9 la puerta se apaga
+C 0x44dd y se apunta que hay que cambiar de fase
+L 0x44e3 mira_si_recoge_el_premio
+C 0x44e3 el premio esta puesto?
+C 0x44e8 su fila
+C 0x44ed y su columna
+C 0x44f2 recogido
+C 0x44f6 un numero al azar
+C 0x44f9 entre 0x10 y 0x7E, par: en pantalla, entre 160 y 1260 puntos
+C 0x4501 al marcador
+C 0x4508 y el sonidito de recoger, en la voz A
+
+D 0x450f 0x453b guion_de_sonido_del_premio  Lo instala 0x4508 en (0xE305) al recoger el premio: nueve cuadros bajando el tono de la voz A de 0xD4 a 0x8E y el volumen con ellos, cerrado por un 0xFF doble
+
+B 0x453b ----------------------------------------------------------------------
+B 0x453b LOS CUATRO ENEMIGOS DE CASTIGO. Si una llama alcanza al premio o
+B 0x453b a la puerta, salen CUATRO enemigos mas por donde estaban. Lo
+B 0x453b apunta 0x461E -o 0x463C- poniendo (0xE311) y la coordenada, y
+B 0x453b aqui se espera a que esa casilla quede libre para meterlos: si
+B 0x453b sigue habiendo llama, no se hace nada y se vuelve el cuadro
+B 0x453b siguiente.
+B 0x453b ----------------------------------------------------------------------
+L 0x453b saca_los_enemigos_de_castigo
+C 0x453b hay castigo pendiente?
+C 0x4540 y no cobrado ya
+C 0x4545 la casilla donde estaba lo que reventaron
+C 0x4549 en el tablero
+C 0x454c tiene que estar limpia: si aun hay llama, se espera
+C 0x4552 cuatro enemigos mas vivos
+C 0x455a la lista, y cuatro por poner
+L 0x4560 busca_una_ficha_libre
+C 0x4560 el final de la lista
+C 0x4566 esta ficha esta libre?
+C 0x4569 pues se ocupa
+C 0x456d con la columna
+C 0x4573 y la fila del castigo
+C 0x4579 puestos los cuatro
+L 0x457c a_la_ficha_siguiente_del_castigo
+C 0x457c siete bytes por ficha
+L 0x4583 castigo_cobrado
+C 0x4583 castigo cobrado: no se repite
+
+B 0x4589 ----------------------------------------------------------------------
+B 0x4589 Vacia la lista de enemigos: pone a cero el primer byte de cada
+B 0x4589 ficha hasta el 0xFF que la cierra. Las otras seis columnas se
+B 0x4589 quedan como estaban, porque solo cuenta la primera.
+B 0x4589 ----------------------------------------------------------------------
+L 0x4589 borra_la_lista_de_enemigos
+C 0x4589 la lista, ocho fichas de siete bytes
+L 0x458d borra_una_ficha_de_enemigo
+C 0x458d con 0xFF se acaba la lista
+C 0x4592 ficha libre
+C 0x4596 siete bytes a la siguiente
+
+B 0x459d ----------------------------------------------------------------------
+B 0x459d REPARTE LOS ENEMIGOS DE LA FASE por las cuatro esquinas, una al
+B 0x459d azar por cada uno. No mira si la esquina ya esta ocupada, asi que
+B 0x459d dos enemigos pueden salir encima del otro; se separan solos en
+B 0x459d cuanto empiezan a andar.
+B 0x459d ----------------------------------------------------------------------
+L 0x459d reparte_los_enemigos_de_la_fase
+C 0x459d cuantos toca poner
+C 0x45a1 la primera ficha
+L 0x45a5 reparte_un_enemigo
+C 0x45a5 las cuatro esquinas
+C 0x45a8 una al azar
+C 0x45ab de las cuatro
+C 0x45ad dos bytes por esquina
+C 0x45b0 la columna
+C 0x45b5 y la fila
+C 0x45b9 vivo
+C 0x45bd siete bytes a la ficha siguiente
+C 0x45c2 hasta ponerlos todos
+
+D 0x45c6 0x45ce esquinas_de_salida  Las cuatro esquinas del tablero en parejas (columna, fila), que sortea 0x45A8: (1,1), (29,1), (1,19) y (29,19). Son las cuatro casillas de dos por dos de las puntas, dentro del marco
+F 0x45c6 2
+
+B 0x45ce ----------------------------------------------------------------------
+B 0x45ce DESCUBRE EL PREMIO. Se mira cada cuadro hasta que sale: cuando
+B 0x45ce las cuatro casillas donde esta escondido quedan vacias EN LAS DOS
+B 0x45ce PANTALLAS -en el tablero, o sea que el ladrillo ya reventó, y en
+B 0x45ce la pantalla, o sea que ahora mismo no hay nadie encima- se
+B 0x45ce enciende y ya no se vuelve a mirar.
+B 0x45ce ----------------------------------------------------------------------
+L 0x45ce descubre_el_premio
+C 0x45ce ya esta a la vista?
+C 0x45d3 su columna y su fila
+C 0x45d7 guardadas, que `pon_el_cursor` machaca BC
+C 0x45d9 en el tablero
+C 0x45dc las cuatro casillas libres?
+C 0x45e2 y ahora en la pantalla
+C 0x45e7 tambien: nada encima
+C 0x45ed premio a la vista
+C 0x45f2 y no se vuelve a mirar
+
+B 0x45f6 ----------------------------------------------------------------------
+B 0x45f6 PINTA EL PREMIO, cuatro casillas: 0x0A y 0x0B arriba, 0x1A y 0x1B
+B 0x45f6 abajo. El `add a,00fh` del medio es lo que salta de 0x0B a 0x1A,
+B 0x45f6 o sea una fila entera de la hoja de casillas.
+B 0x45f6 ----------------------------------------------------------------------
+L 0x45f6 pinta_el_premio
+C 0x45f6 esta puesto?
+C 0x45fb columna y fila
+C 0x4601 el cursor, en la PANTALLA
+C 0x4604 arriba a la izquierda
+C 0x4609 arriba a la derecha
+C 0x460e una fila mas abajo, misma columna
+C 0x4614 y las dos casillas de abajo, 0x1A y 0x1B
+C 0x461b la ultima, y se vuelve desde ahi
+
+B 0x461e ----------------------------------------------------------------------
+B 0x461e Pinta una casilla del premio Y MIRA LO QUE HABIA DEBAJO. Si era
+B 0x461e una llama (0xE0 para arriba) el premio se destruye, y ahi empieza
+B 0x461e el castigo: se apunta su sitio en (0xE31A) y (0xE31B) y se pide
+B 0x461e que salgan cuatro enemigos.
+B 0x461e ----------------------------------------------------------------------
+L 0x461e pinta_una_casilla_del_premio
+C 0x461f lo que ya habia ahi
+C 0x4620 una llama?
+C 0x4624 el premio se ha ido
+C 0x4628 su columna
+C 0x462b como sitio del castigo
+C 0x462e y su fila
+C 0x4634 castigo pendiente
+L 0x4639 escribe_la_casilla_del_premio
+C 0x463a y la casilla se pinta igual
+
+B 0x463c ----------------------------------------------------------------------
+B 0x463c Lo mismo con la puerta: si le entra una llama, se apaga y salen
+B 0x463c cuatro enemigos por donde estaba. La fase no se queda sin salida:
+B 0x463c 0x465A la vuelve a descubrir en cuanto la casilla queda limpia.
+B 0x463c ----------------------------------------------------------------------
+L 0x463c pinta_una_casilla_de_la_puerta
+C 0x463d lo que ya habia ahi
+C 0x463e una llama?
+C 0x4642 la puerta se ha ido
+C 0x4646 su columna
+C 0x4649 como sitio del castigo
+C 0x464c y su fila
+C 0x4652 castigo pendiente
+L 0x4657 escribe_la_casilla_de_la_puerta
+C 0x4658 y la casilla se pinta igual
+
+B 0x465a ----------------------------------------------------------------------
+B 0x465a DESCUBRE LA PUERTA. Igual que el premio, pero mirando solo la
+B 0x465a PANTALLA: no le importa que en el tablero siga habiendo algo,
+B 0x465a porque la puerta se dibuja encima.
+B 0x465a ----------------------------------------------------------------------
+L 0x465a descubre_la_puerta
+C 0x465a ya esta a la vista?
+C 0x465f su columna y su fila
+C 0x4663 guardadas, que `pon_el_cursor` machaca BC
+C 0x4665 en el tablero
+C 0x4668 las cuatro casillas libres?
+C 0x466e y en la pantalla
+C 0x4673 tambien
+C 0x4679 puerta a la vista
+C 0x467e y no se vuelve a mirar
+
+B 0x4681 ----------------------------------------------------------------------
+B 0x4681 PINTA LA PUERTA, las casillas 0x0E, 0x0F, 0x1E y 0x1F, con el
+B 0x4681 mismo salto de fila que el premio.
+B 0x4681 ----------------------------------------------------------------------
+L 0x4681 pinta_la_puerta
+C 0x4681 esta puesta?
+C 0x4686 columna y fila
+C 0x468a el cursor, en la PANTALLA
+C 0x468d arriba a la izquierda
+C 0x4692 arriba a la derecha
+C 0x4697 una fila mas abajo
+C 0x469d y las dos de abajo, 0x1E y 0x1F
+
+B 0x46a8 ----------------------------------------------------------------------
+B 0x46a8 Las cuatro casillas de una posicion, todas vacias? Se vuelve con
+B 0x46a8 la PRIMERA que no lo este, asi que el que llama comprueba con un
+B 0x46a8 `cp 020h`. BC queda apuntando a la ultima que se ha mirado.
+B 0x46a8 ----------------------------------------------------------------------
+L 0x46a8 estan_libres_las_cuatro
+C 0x46a8 arriba a la izquierda
+C 0x46ac arriba a la derecha
+C 0x46b1 una fila mas abajo
+C 0x46b7 abajo a la izquierda
+C 0x46bb y abajo a la derecha, que es la que se devuelve
+
+B 0x46be ----------------------------------------------------------------------
+B 0x46be EL CONTADOR CON TOPE, que es como se mide TODO el tiempo del
+B 0x46be juego. HL apunta a una pareja (cuenta, tope): se suma uno y al
+B 0x46be llegar al tope se vuelve a cero. Hay seis parejas seguidas en
+B 0x46be 0xE36F, y quien quiere hacer algo "de vez en cuando" mira si su
+B 0x46be cuenta vale cero.
+B 0x46be ----------------------------------------------------------------------
+L 0x46be avanza_un_contador
+C 0x46be la cuenta
+C 0x46c0 contra el tope, que va justo detras
+C 0x46c2 si no llega, se queda
+C 0x46c4 y si llega, vuelta a empezar
+L 0x46c5 guarda_la_cuenta
+C 0x46c6 guardada
+
+B 0x46c8 ----------------------------------------------------------------------
+B 0x46c8 CIERRA EL CUADRO: los cinco contadores, el volcado a la VRAM y el
+B 0x46c8 sonido. La espera del final es lo unico que marca el ritmo del
+B 0x46c8 juego, porque el cartucho DESENGANCHA la interrupcion de la BIOS
+B 0x46c8 (el `ret` que 0x5065 mete en H.TIMI) y no espera al barrido: la
+B 0x46c8 pantalla se vuelca cuando toca, no cuando el VDP esta a salvo.
+B 0x46c8 ----------------------------------------------------------------------
+L 0x46c8 cierra_el_cuadro
+C 0x46c8 el paso del bombero, cada 4
+C 0x46ce el paso de los enemigos, cada 5
+C 0x46d4 el bonus, cada 50
+C 0x46da la bomba y el ladrillo, cada 3
+C 0x46e0 la pantalla entera a la VRAM, y en blanco para el cuadro siguiente
+C 0x46e3 los dos guiones de sonido avanzan un cuadro
+C 0x46e6 y la espera que marca el ritmo
+C 0x46e9 0x500 vueltas en vacio
+
+# ======================================================================
+# LOS ENEMIGOS
+# ======================================================================
+# La lista esta en 0xE31C: OCHO fichas de siete bytes, cerradas por el 0xFF de
+# 0xE354. Cada ficha es
+#
+#     +0  que hace: 0 libre, 1 vivo, 2..9 reventando, 0xFF fin de la lista
+#     +1  columna
+#     +2  fila
+#     +3  cuadro de dibujo, que cuenta 3, 2, 1, 0 y vuelta
+#     +4  cuenta atras hasta el cuadro siguiente, recargada de (0xE317)
+#     +5  hacia donde va: 0 izquierda, 1 derecha, 2 arriba, 3 abajo
+#     +6  sin usar
+#
+# El +3 hace dos cosas a la vez: elige el dibujo y decide el comportamiento.
+# Cuando vale cero el enemigo VA A POR EL BOMBERO, y el resto del tiempo anda
+# a lo suyo. Asi que los enemigos persiguen una cuarta parte del tiempo, y esa
+# cuarta parte es tambien un cuadro concreto del dibujo.
+B 0x46ec ----------------------------------------------------------------------
+B 0x46ec MUEVE LOS ENEMIGOS, uno por ficha. Solo corre cuando el contador
+B 0x46ec de 0xE375 vuelve a cero, o sea un cuadro de cada cinco.
+B 0x46ec OJO: el `and 003h` de 0x472F mira ese MISMO contador, que aqui
+B 0x46ec vale cero a la fuerza -si no, se habria vuelto en 0x46F0-, asi
+B 0x46ec que ese `jp nz` no se toma nunca. Codigo muerto.
+B 0x46ec ----------------------------------------------------------------------
+L 0x46ec mueve_los_enemigos
+C 0x46ec un cuadro de cada cinco
+C 0x46f1 cambia el parpadeo de todos, que es el mismo para los ocho
+C 0x46f9 la primera ficha
+L 0x46fd mueve_un_enemigo
+C 0x46fd con 0xFF se acaba la lista
+C 0x4703 solo andan los vivos
+C 0x4708 la cuenta atras
+C 0x470d ha dado la vuelta?
+C 0x4711 pues un cuadro de dibujo menos
+C 0x4715 y de 0 se pasa a 3
+C 0x471e la cuenta se recarga con la cadencia de la fase
+L 0x4722 guarda_la_cuenta_atras
+C 0x4723 guardada
+C 0x4726 en el cuadro 0 no se filtra nada
+C 0x472c MUERTO: (0xE375) vale cero aqui a la fuerza
+L 0x4734 decide_a_donde_va
+C 0x4734 cuadro 0: a por el bombero
+C 0x473a y una vez de cada dieciseis, tambien
+C 0x4742 una de cada cuatro, cambio de idea
+C 0x4747 lo que hay delante
+C 0x474a si estorba, hay que buscar otro sitio
+C 0x474e y si no, un paso
+L 0x4753 prueba_otro_sentido
+C 0x4753 un sentido al azar
+C 0x475b si tambien estorba, este cuadro no se mueve
+C 0x4762 y si no, un paso
+L 0x4767 cambia_de_sentido_por_gusto
+C 0x4767 un sentido al azar, por gusto
+C 0x476f si estorba, no se mueve
+C 0x4776 y si no, un paso
+L 0x477b va_a_por_el_bombero
+C 0x477b la columna del bombero
+C 0x477f contra la del enemigo
+C 0x4783 misma columna: se prueba en vertical
+C 0x4785 el bombero esta a la izquierda
+C 0x4787 y si no, a la derecha
+L 0x478d hacia_la_izquierda
+C 0x478d izquierda
+L 0x4791 prueba_en_horizontal
+C 0x4791 se puede?
+C 0x4796 pues por ahi
+L 0x4798 prueba_en_vertical
+C 0x4798 la fila del bombero
+C 0x479c contra la del enemigo
+C 0x47a0 misma casilla: no hay a donde ir
+C 0x47a2 el bombero esta arriba
+C 0x47a4 y si no, abajo
+L 0x47aa hacia_arriba
+C 0x47aa arriba
+L 0x47ae se_puede_en_vertical
+C 0x47ae se puede?
+L 0x47b6 pues_un_paso
+C 0x47b6 un paso
+L 0x47b9 al_enemigo_siguiente
+C 0x47b9 siete bytes por ficha
+
+B 0x47c1 ----------------------------------------------------------------------
+B 0x47c1 UN PASO, con la tabla de 0x482D: dos bytes por sentido, la fila y
+B 0x47c1 la columna que hay que sumar. Se anda de casilla en casilla de la
+B 0x47c1 PANTALLA, no de dos en dos, asi que un enemigo puede quedarse a
+B 0x47c1 medio camino entre dos casillas del tablero.
+B 0x47c1 ----------------------------------------------------------------------
+L 0x47c1 da_un_paso
+C 0x47c1 el sentido
+C 0x47c4 dos bytes por sentido
+C 0x47cc la fila
+C 0x47d3 y la columna
+L 0x47dc mira_lo_que_hay_delante
+C 0x47dc la tabla de sondas, cuatro bytes por sentido
+C 0x47df el sentido
+C 0x47e8 la fila de la primera casilla
+C 0x47ee y su columna
+C 0x47f4 en la PANTALLA
+C 0x47f9 de 0x80 para arriba estorba: ladrillo, muro, pilar, bombero,
+C 0x47fb enemigo o llama
+C 0x47fc y ahora en el TABLERO, donde estan los ladrillos
+C 0x4803 la segunda casilla, que el bicho ocupa dos
+C 0x480f en la pantalla
+C 0x4818 y en el tablero
+C 0x481b lo que se devuelve
+
+D 0x481d 0x482d sondas_de_los_enemigos  Cuatro bytes por sentido -0 izquierda, 1 derecha, 2 arriba, 3 abajo-, que son las dos casillas de delante en parejas (fila, columna): a la izquierda mira (0,-1) y (1,-1), a la derecha (0,+2) y (1,+2), arriba (-1,0) y (-1,+1), y abajo (+2,0) y (+2,+1). Son dos porque el enemigo ocupa dos casillas de ancho y de alto
+F 0x481d 4
+D 0x482d 0x4835 pasos_de_los_enemigos  Dos bytes por sentido, la fila y la columna que se le suman a la ficha: (0,-1), (0,+1), (-1,0) y (+1,0). El mismo orden que las sondas
+F 0x482d 2
+
+B 0x4835 ----------------------------------------------------------------------
+B 0x4835 PINTA LOS ENEMIGOS y les lleva la agonia. El estado de la ficha
+B 0x4835 hace de indice: 1 es el bicho vivo, y de 2 a 9 los siete cuadros
+B 0x4835 en que revienta, casillas 0x22, 0x24, 0x26... hasta que el
+B 0x4835 `cp 030h` dice que ya no queda dibujo y solo se borra. Esos son
+B 0x4835 los mismos dibujos que en la portada forman el rotulo grande de
+B 0x4835 BOMBER MAN, porque alli el bloque de graficos es otro.
+B 0x4835 ----------------------------------------------------------------------
+L 0x4835 pinta_los_enemigos
+C 0x4835 la primera ficha
+L 0x4839 pinta_un_enemigo
+C 0x4839 con 0xFF se acaba la lista
+C 0x483e libre: a la siguiente
+C 0x4842 vivo: se pinta y ya
+C 0x4847 reventando: su columna
+C 0x484a y su fila
+C 0x4850 el estado por dos y mas 0x1E: 2 da 0x22, 3 da 0x24...
+C 0x4856 pasado el ultimo dibujo
+C 0x485a solo queda borrarlo
+L 0x4861 pinta_el_cuadro_de_la_agonia
+C 0x4861 y si no, las cuatro casillas del cuadro que toque
+C 0x4864 SEIS BYTES QUE SOBRAN: se ejecutan, y no hacen nada, porque
+C 0x4865 nadie vuelve a leer B ni C. Son un `ld c,a` y cuatro `ld b,..`
+C 0x4866 inofensivos; leidos como texto, y con la fuente del propio
+C 0x4867 cartucho, dicen "OBADD". Es lo unico de los 8 KB que no sirve
+C 0x4868 para nada, ni de dato ni de instruccion
+C 0x4869 y el `nop` que los cierra
+L 0x486a avanza_la_agonia_del_enemigo
+C 0x486b la cuenta de la agonia, cada 7 cuadros
+C 0x4872 si no toca, se queda en este dibujo
+C 0x4879 un cuadro mas
+C 0x487d pasado el ultimo, se apunta el muerto
+C 0x4884 el estado, de 2 a 9
+C 0x4885 al registro 1 del PSG: el tono grueso de la voz A, que sube
+C 0x4887 con cada cuadro de la agonia
+C 0x488a y el guion que va detras
+C 0x4890 a la ficha siguiente
+
+D 0x4892 0x48a5 guion_de_sonido_del_enemigo  Lo instala 0x488A en (0xE305) cuando un enemigo revienta: tres cuadros subiendo el tono de la voz A de 0x0000 a 0x00FA mientras baja el volumen, cerrado por un 0xFF doble
+
+B 0x48a5 ----------------------------------------------------------------------
+B 0x48a5 SE ACABO EL ENEMIGO: la ficha queda libre y se cobra. Los puntos
+B 0x48a5 salen del cuadro de dibujo en que estaba mas un numero al azar de
+B 0x48a5 0 a 3, o sea entre 3 y 18, que en pantalla son de 30 a 180. Si el
+B 0x48a5 bombero se esta muriendo (estado 6 o mas) no se cuenta como
+B 0x48a5 enemigo eliminado, para que morir a la vez que el ultimo bicho no
+B 0x48a5 de la fase por limpia.
+B 0x48a5 ----------------------------------------------------------------------
+L 0x48a5 se_acabo_el_enemigo
+C 0x48a5 ficha libre
+C 0x48a9 el cuadro de dibujo en que se quedo
+C 0x48ac por cuatro
+C 0x48ae y dos mas
+C 0x48b1 un numero al azar
+C 0x48b4 de 0 a 3
+C 0x48b6 o sea de 1 a 4
+C 0x48b7 sumado a lo anterior: entre 3 y 18
+C 0x48bb al marcador, que en pantalla son de 30 a 180 puntos
+C 0x48c2 si el bombero se esta muriendo, no cuenta
+C 0x48c9 un enemigo menos
+C 0x48d0 quedan?
+C 0x48d2 no queda ninguno: fase limpia
+
+B 0x48db ----------------------------------------------------------------------
+B 0x48db PINTA UN ENEMIGO VIVO: cuatro casillas a partir de 0xC0 mas el
+B 0x48db cuadro de dibujo por cuatro, mas el parpadeo de (0xE358). Que
+B 0x48db empiecen en 0xC0 no es casualidad: es justo el limite que usa
+B 0x48db 0x4BEB para saber que el bombero ha tocado algo que mata.
+B 0x48db ----------------------------------------------------------------------
+L 0x48db pinta_un_enemigo_vivo
+C 0x48db su columna
+C 0x48de y su fila
+C 0x48e1 el cursor, en la PANTALLA
+C 0x48e4 el cuadro de dibujo
+C 0x48e7 por cuatro
+C 0x48e9 a partir de 0xC0
+C 0x48eb mas el parpadeo, que vale 0 o 2
+C 0x48ef arriba a la izquierda
+C 0x48f2 arriba a la derecha
+C 0x48f7 una fila mas abajo
+C 0x48fd y las dos de abajo
+L 0x4907 a_la_ficha_siguiente
+C 0x4907 siete bytes por ficha
+
+B 0x490f ----------------------------------------------------------------------
+B 0x490f Pinta una casilla del enemigo y mira lo que habia debajo: si era
+B 0x490f una llama, el enemigo pasa al estado 2 y empieza a reventar.
+B 0x490f ----------------------------------------------------------------------
+L 0x490f pinta_una_casilla_del_enemigo
+C 0x4910 lo que ya habia ahi
+C 0x4911 una llama?
+C 0x4915 pues a reventar
+L 0x4919 escribe_la_casilla_del_enemigo
+C 0x491a y la casilla se pinta igual
+
+# ======================================================================
+# LAS BOMBAS
+# ======================================================================
+# La lista esta en 0xE359: CINCO fichas de cuatro bytes, cerradas por el 0xFF
+# de 0xE36D. Cada ficha es
+#
+#     +0  que hace: 0 libre, 1..4 la mecha, 5..12 la explosion, 13 apagar,
+#         0xFF fin de la lista
+#     +1  columna
+#     +2  fila
+#     +3  cuenta hasta el cuadro siguiente
+#
+# O sea que caben cinco bombas a la vez, y no hay ningun limite mas: el juego
+# no lleva "cuantas bombas te quedan".
+B 0x491c ----------------------------------------------------------------------
+B 0x491c PON UNA BOMBA. Y aqui esta la particularidad del cartucho: en las
+B 0x491c fases MULTIPLOS DE CUATRO no hace falta pulsar nada, las bombas
+B 0x491c caen solas. Es lo que dice el `and 003h`, y lo que anuncia el
+B 0x491c rotulo parpadeante de abajo -"BOMB AUTO SETTING STAGE"- que pinta
+B 0x491c 0x4D37 con exactamente la misma condicion.
+B 0x491c ----------------------------------------------------------------------
+L 0x491c pon_una_bomba
+C 0x491c si el bombero se esta muriendo, no
+C 0x4922 la fase
+C 0x4925 en las fases 4, 8, 12... la bomba cae sola
+C 0x4929 y si no, hay que tener el disparo pulsado
+L 0x492e busca_una_ficha_de_bomba_libre
+C 0x492e la lista de bombas
+L 0x4932 mira_esta_ficha_de_bomba
+C 0x4932 con 0xFF se acaba la lista
+C 0x4937 ocupada: a la siguiente
+C 0x493b la casilla del bombero
+C 0x493f su columna
+C 0x4942 y su fila
+C 0x4945 el cursor, en el TABLERO
+C 0x4948 guardado, que hace falta otra vez al final
+C 0x494a la casilla de arriba a la izquierda tiene que estar vacia
+C 0x494e y las otras tres
+C 0x4962 el sitio otra vez
+C 0x4964 la bomba, casillas 0x60, 0x61, 0x70 y 0x71
+C 0x4969 mecha encendida
+C 0x496e la cuenta, a cero
+C 0x4972 y el bombero se queda quieto: el cuadro 0x8A, con la bomba en la mano
+L 0x4976 a_la_ficha_de_bomba_siguiente
+C 0x4976 cuatro bytes por ficha
+L 0x497e esta_vacia
+C 0x497e vacia es 0x20, y lo mira quien llama
+
+B 0x4982 ----------------------------------------------------------------------
+B 0x4982 Vacia la lista de bombas, igual que 0x4589 con la de enemigos.
+B 0x4982 ----------------------------------------------------------------------
+L 0x4982 borra_la_lista_de_bombas
+C 0x4982 la lista, cinco fichas de cuatro bytes
+L 0x4986 borra_una_ficha_de_bomba
+C 0x4986 con 0xFF se acaba
+C 0x498b ficha libre
+C 0x498f cuatro bytes a la siguiente
+
+B 0x4996 ----------------------------------------------------------------------
+B 0x4996 LAS BOMBAS AVANZAN. La mecha son cuatro estados que tardan siete
+B 0x4996 cuadros cada uno; la explosion, ocho estados mas que van uno cada
+B 0x4996 vez que el contador de 0xE377 vuelve a cero, o sea uno cada tres
+B 0x4996 cuadros. Al llegar al catorce la ficha se apaga y se calla la voz.
+B 0x4996 ----------------------------------------------------------------------
+L 0x4996 avanzan_las_bombas
+C 0x4996 el parpadeo de todas las bombas, que es el mismo
+C 0x499e la primera ficha
+L 0x49a2 avanza_una_bomba
+C 0x49a2 con 0xFF se acaba la lista
+C 0x49a7 libre: a la siguiente
+C 0x49aa del cinco para arriba ya esta explotando
+C 0x49ae y con la mecha, una cuenta de siete cuadros
+C 0x49b5 hasta que cuadra
+L 0x49b9 cambia_de_estado_la_bomba
+C 0x49b9 la cuenta se reinicia
+C 0x49bd y solo se avanza un cuadro de cada tres
+C 0x49c3 un estado mas
+C 0x49c7 pasado el catorce, la bomba se acabo
+C 0x49ce del cinco para abajo, la mecha sigue
+C 0x49d2 justo al empezar la explosion, el ruido
+C 0x49d6 MUERTO: las dos salidas de este `cp` van al mismo sitio
+L 0x49df apaga_la_bomba
+C 0x49df ficha libre
+C 0x49e3 registro 9 a cero: se calla la voz B
+L 0x49e9 a_la_bomba_siguiente_de_la_cuenta
+C 0x49e9 cuatro bytes por ficha
+
+D 0x49f3 0x4a06 tabla_del_psg_del_estallido  Nueve parejas y el 0xFF: pone el ruido en 0x1F, lo mete en el mezclador con el registro 7 y arranca la envolvente. Es el trueno de la explosion, y va pegado detras del `call` de 0x49F0
+F 0x49f3 2
+
+B 0x4a06 ----------------------------------------------------------------------
+B 0x4a06 Y sigue aqui, detras de la tabla, con el `push hl / ret` de 0x405C.
+B 0x4a06 Un `jr` de dos bytes para volver al bucle de las fichas.
+B 0x4a06 ----------------------------------------------------------------------
+C 0x4a06 a la ficha siguiente
+
+B 0x4a08 ----------------------------------------------------------------------
+B 0x4a08 PINTA LAS BOMBAS Y LAS LLAMAS. Tres cosas segun el estado: del 1
+B 0x4a08 al 4 la bomba, que encoge segun se le acaba la mecha; del 5 al 12
+B 0x4a08 la explosion; y el 13 borra lo que quedaba.
+B 0x4a08 La bomba se pinta en el TABLERO y en la PANTALLA a la vez, y por
+B 0x4a08 eso se usa el juego alternativo de registros: BC y D llevan la
+B 0x4a08 misma casilla y el mismo dibujo dos veces, una para cada pantalla.
+B 0x4a08 ----------------------------------------------------------------------
+L 0x4a08 pinta_las_bombas_y_las_llamas
+C 0x4a08 la primera ficha
+L 0x4a0c pinta_una_bomba
+C 0x4a0c con 0xFF se acaba la lista
+C 0x4a11 libre: a la siguiente
+C 0x4a14 el 13 solo borra
+C 0x4a18 del 5 para arriba, explosion
+C 0x4a1c el estado por dos mas 0xD6: el 5 da 0xE0, el 6 0xE2...
+C 0x4a1f guardado en el otro juego de registros
+L 0x4a24 pinta_la_bomba
+C 0x4a24 el estado menos uno
+C 0x4a25 por cuatro
+C 0x4a28 mas el parpadeo, que vale 0 o 2
+C 0x4a2c a partir de 0x60
+C 0x4a32 la columna, en los dos juegos de registros
+C 0x4a39 y la fila
+C 0x4a40 el cursor, en el TABLERO
+C 0x4a43 arriba a la izquierda
+C 0x4a46 arriba a la derecha
+C 0x4a4b una fila mas abajo
+C 0x4a51 el salto de 0x0B a 0x1A de la hoja de casillas
+C 0x4a55 y las dos de abajo
+C 0x4a5d y ahora la misma casilla en la PANTALLA
+C 0x4a5e el cursor
+C 0x4a61 con el mismo dibujo, y sin mirar nada
+L 0x4a66 a_la_bomba_siguiente
+C 0x4a66 cuatro bytes por ficha
+
+B 0x4a6d ----------------------------------------------------------------------
+B 0x4a6d LA REACCION EN CADENA. Al escribir la bomba en el tablero se mira
+B 0x4a6d lo que habia debajo: si es una llama, la bomba salta al estado 4
+B 0x4a6d con la cuenta en 6, o sea que el cuadro siguiente ya explota.
+B 0x4a6d Asi es como una bomba enciende a la de al lado.
+B 0x4a6d ----------------------------------------------------------------------
+L 0x4a6d mira_si_la_alcanza_otra_llama
+C 0x4a6d lo que habia
+C 0x4a6e una llama?
+C 0x4a71 pues al ultimo estado de la mecha
+C 0x4a75 con la cuenta casi llena: revienta al cuadro siguiente
+
+B 0x4a7a ----------------------------------------------------------------------
+B 0x4a7a Estado 13: borra del tablero las cuatro casillas que ocupaba la
+B 0x4a7a explosion. La ficha ya se apago en 0x49DF.
+B 0x4a7a ----------------------------------------------------------------------
+L 0x4a7a borra_lo_que_quedaba
+C 0x4a7a su columna
+C 0x4a7e y su fila
+C 0x4a82 en el TABLERO
+C 0x4a85 casillas vacias
+C 0x4a87 las cuatro
+
+B 0x4a8c ----------------------------------------------------------------------
+B 0x4a8c LA EXPLOSION. El centro se pinta a lo bruto, sin mirar lo que hay
+B 0x4a8c debajo, y los cuatro brazos se recorren con la tabla de 0x4F8D.
+B 0x4a8c El dibujo del brazo es el del centro MAS DOS, y cuando eso llega
+B 0x4a8c a 0xF0 se cambia por la casilla vacia: por eso los brazos se
+B 0x4a8c apagan un par de estados antes que el centro.
+B 0x4a8c ----------------------------------------------------------------------
+L 0x4a8c pinta_la_explosion
+C 0x4a8c su columna
+C 0x4a8f y su fila
+C 0x4a92 el cursor, en el TABLERO
+C 0x4a95 el dibujo del centro
+C 0x4a98 las cuatro casillas, sin preguntar
+C 0x4a9b el dibujo otra vez
+C 0x4a9e mas dos: ese es el de los brazos
+C 0x4aa0 pasado el ultimo
+C 0x4aa4 los brazos se apagan
+L 0x4aa6 guarda_el_dibujo_del_brazo
+C 0x4aa7 guardado para las cuarenta casillas del brazo
+C 0x4aa9 la tabla de los cuatro brazos
+
+B 0x4aac ----------------------------------------------------------------------
+B 0x4aac LOS CUATRO BRAZOS, en OCHO tiras de cuatro casillas: una tira por
+B 0x4aac cada lado y cada una de las dos filas -o columnas- que ocupa la
+B 0x4aac explosion. El bucle esta desenrollado a proposito, con una copia
+B 0x4aac por casilla, porque cada una se para de una forma distinta:
+B 0x4aac
+B 0x4aac   1a  se para solo con el muro (0x88), y salta las tres que quedan
+B 0x4aac   2a  se para con ladrillo, muro o pilar (0x80..0x89), dos menos
+B 0x4aac   3a  igual, una menos
+B 0x4aac   4a  igual, y al acabar se vuelve al principio del bucle
+B 0x4aac
+B 0x4aac Y LA DIFERENCIA QUE IMPORTA: la primera y la segunda usan 0x4B21,
+B 0x4aac que GASTA el ladrillo -le suma uno al dibujo cada tres cuadros
+B 0x4aac hasta hacerlo desaparecer-. La tercera y la cuarta usan 0x4B5A,
+B 0x4aac que pinta pero NO gasta. Como las dos primeras casillas son la
+B 0x4aac casilla de tablero pegada a la bomba y las dos ultimas la
+B 0x4aac siguiente, el resultado es que la explosion ALCANZA dos casillas
+B 0x4aac pero solo TIRA los ladrillos de la primera.
+B 0x4aac El 0x80 cuadruplicado del final de la tabla es lo que la cierra:
+B 0x4aac 0x4AB0 lo caza porque es el unico byte que al sumarse consigo
+B 0x4aac mismo da cero.
+B 0x4aac ----------------------------------------------------------------------
+L 0x4aac recorre_los_cuatro_brazos
+C 0x4aac el primer byte de la pareja
+C 0x4aad si es cero no puede ser el cierre
+C 0x4ab0 y 0x80 mas 0x80 da cero: fin de la tabla
+L 0x4ab4 la_primera_casilla_de_la_tira
+C 0x4ab4 la fila
+C 0x4ab6 sumada a la de la bomba
+C 0x4aba y la columna
+C 0x4ac0 pinta la llama y devuelve lo que habia
+C 0x4ac3 el muro?
+C 0x4ac5 no: a la casilla siguiente
+C 0x4ac7 si: las tres que quedan de la tira no se pintan
+
+B 0x4ac9 ----------------------------------------------------------------------
+B 0x4ac9 LA COMPROBACION QUE NO SE EJECUTA. Estos dos son el `cp 089h` del
+B 0x4ac9 pilar, y el `jr $+6` de dos lineas mas arriba pasa por encima de
+B 0x4ac9 ellos: no hay forma de llegar aqui. Si se ejecutara, la primera
+B 0x4ac9 casilla de la tira se pararia tambien con el pilar; como no lo
+B 0x4ac9 hace, sigue a la segunda, que da con la otra mitad del mismo
+B 0x4ac9 pilar y para la tira ahi. O sea que el resultado en pantalla es
+B 0x4ac9 el mismo, y por eso nadie lo arreglo nunca.
+B 0x4ac9 ----------------------------------------------------------------------
+L 0x4ac9 el_pilar_que_no_se_comprueba
+C 0x4ac9 el pilar
+C 0x4acb no lo es: a la casilla siguiente de la tira
+L 0x4acd salta_lo_que_queda_de_tira
+C 0x4acd tres parejas de dos bytes, o sea las tres casillas
+C 0x4ace que quedan de esta tira, que no se van a pintar
+C 0x4acf porque algo las tapa
+C 0x4ad3 y a la tira siguiente
+
+B 0x4ad5 ----------------------------------------------------------------------
+B 0x4ad5 LA SEGUNDA CASILLA de la tira, la que completa la casilla de
+B 0x4ad5 tablero pegada a la bomba. Es la ultima que gasta ladrillos.
+B 0x4ad5 ----------------------------------------------------------------------
+L 0x4ad5 la_segunda_casilla_de_la_tira
+C 0x4ad5 la fila
+C 0x4ad7 sumada a la de la bomba
+C 0x4adb y la columna
+C 0x4ae1 pinta la llama y devuelve lo que habia
+C 0x4ae4 por debajo de 0x80 no estorba nada
+C 0x4ae8 y de 0x8A para arriba, tampoco: eso ya es gente
+C 0x4aec ladrillo, muro o pilar: las dos que quedan no se pintan
+
+B 0x4af2 ----------------------------------------------------------------------
+B 0x4af2 LA TERCERA, que ya es la casilla de tablero siguiente. De aqui en
+B 0x4af2 adelante se usa 0x4B5A, que pinta la llama pero NO gasta el
+B 0x4af2 ladrillo, asi que un ladrillo a dos casillas para la llama y se
+B 0x4af2 queda entero.
+B 0x4af2 ----------------------------------------------------------------------
+L 0x4af2 la_tercera_casilla_de_la_tira
+C 0x4af2 la fila
+C 0x4af4 sumada a la de la bomba
+C 0x4af8 y la columna
+C 0x4afe pinta, y devuelve DOS cosas: lo que hay en la pantalla en A'
+C 0x4b01 y esa es la que se mira
+C 0x4b02 por debajo de 0x80 no estorba
+C 0x4b06 de 0x8A para arriba, tampoco
+C 0x4b0b ladrillo, muro o pilar: la ultima no se pinta
+L 0x4b0f la_cuarta_casilla_de_la_tira
+C 0x4b0f el acarreo, como estaba
+C 0x4b10 la fila
+C 0x4b12 sumada a la de la bomba
+C 0x4b16 y la columna
+C 0x4b1c la ultima de la tira
+C 0x4b1f y a la tira siguiente
+
+B 0x4b21 ----------------------------------------------------------------------
+B 0x4b21 PINTA UNA LLAMA Y GASTA EL LADRILLO. Mira las DOS pantallas: el
+B 0x4b21 muro y el pilar solo estan en la de arriba, los ladrillos solo en
+B 0x4b21 el tablero. Si lo que hay es un ladrillo (0x80..0x89) se le suma
+B 0x4b21 uno al dibujo -cada tres cuadros, que es lo que decide 0x4B4E- y
+B 0x4b21 al llegar al 0x88 se cambia por casilla vacia: ocho cuadros de
+B 0x4b21 desmoronarse. Y si no hay ladrillo, se pinta la llama.
+B 0x4b21 ----------------------------------------------------------------------
+L 0x4b21 pinta_una_llama_y_gasta_el_ladrillo
+C 0x4b22 el cursor, en la PANTALLA
+C 0x4b25 lo que hay
+C 0x4b27 el muro para la llama
+C 0x4b2a y el pilar tambien
+C 0x4b2d y ahora la misma casilla en el TABLERO
+C 0x4b31 el muro, otra vez
+C 0x4b34 por debajo de 0x80 no hay ladrillo
+C 0x4b38 y de 0x8A para arriba, tampoco
+C 0x4b3c o sea que 0x80..0x89 es ladrillo
+L 0x4b3e no_hay_ladrillo
+C 0x4b3e no hay ladrillo: se pinta la llama
+L 0x4b43 hay_ladrillo
+C 0x4b43 un cuadro mas de desmoronarse, si toca
+C 0x4b46 pasado el ultimo
+C 0x4b4a la casilla se queda vacia
+L 0x4b4c escribe_la_casilla
+C 0x4b4c y se escribe
+
+B 0x4b4e ----------------------------------------------------------------------
+B 0x4b4e SUMARLE UNO A A, PERO SOLO CADA TRES CUADROS. El truco: `push af`
+B 0x4b4e y `ex (sp),hl` meten AF en HL, asi que el `inc h` incrementa la A
+B 0x4b4e guardada, y el `pop af` la recoge ya cambiada. Se hace asi para
+B 0x4b4e no gastar un registro, que en esta rutina no queda ninguno libre.
+B 0x4b4e ----------------------------------------------------------------------
+L 0x4b4e si_toca_gasta_el_ladrillo
+C 0x4b4e A a la pila
+C 0x4b4f y de la pila a H, que es donde va la A
+C 0x4b50 la cuenta de tres cuadros
+C 0x4b54 si no toca, se deja como estaba
+C 0x4b56 y si toca, un cuadro mas de desmoronarse
+L 0x4b57 devuelve_la_a_cambiada
+C 0x4b57 H otra vez a la pila
+C 0x4b58 y de ahi a A, ya cambiada
+
+B 0x4b5a ----------------------------------------------------------------------
+B 0x4b5a PINTA UNA LLAMA, PERO SIN GASTAR EL LADRILLO. La usan la tercera
+B 0x4b5a y la cuarta casilla de cada tira. Devuelve dos cosas: en A' lo
+B 0x4b5a que hay en la PANTALLA, que es lo que mira quien llama para
+B 0x4b5a saber si la tira se para, y en A lo que se ha encontrado por el
+B 0x4b5a camino. Si hay ladrillo se vuelve SIN ESCRIBIR, y por eso un
+B 0x4b5a ladrillo a dos casillas de la bomba no se rompe.
+B 0x4b5a ----------------------------------------------------------------------
+L 0x4b5a pinta_una_llama_sin_gastar
+C 0x4b5b el cursor, en la PANTALLA
+C 0x4b5e lo que hay
+C 0x4b5f guardado en A', que es lo que mira quien llama
+C 0x4b63 el muro para la llama
+C 0x4b66 y el pilar tambien
+C 0x4b69 la misma casilla en el TABLERO
+C 0x4b6d de 0x8A para arriba no hay ladrillo
+C 0x4b71 ni por debajo de 0x80
+C 0x4b75 hay ladrillo: se vuelve sin pintar nada
+L 0x4b76 escribe_la_llama
+C 0x4b76 la llama
+C 0x4b79 escrita
+
+B 0x4b7b ----------------------------------------------------------------------
+B 0x4b7b LAS DOS RUTINAS QUE PINTAN UNA COSA DE DOS POR DOS, que es como
+B 0x4b7b esta hecho TODO lo que se mueve en este juego. La primera pinta
+B 0x4b7b A, A+1, A+0x10 y A+0x11 -o sea cuatro casillas seguidas de la
+B 0x4b7b hoja, dos arriba y dos abajo-; la segunda pinta la misma cuatro
+B 0x4b7b veces. El 0x1F del medio es 32 menos el `inc bc` que ya se hizo,
+B 0x4b7b y el 0x0F, 0x10 menos el `inc a`.
+B 0x4b7b ----------------------------------------------------------------------
+L 0x4b7b pinta_cuatro_casillas
+C 0x4b7b arriba a la izquierda
+C 0x4b7c arriba a la derecha
+C 0x4b7f una fila mas abajo
+C 0x4b85 y el salto de dibujo que le corresponde
+C 0x4b87 abajo a la izquierda
+C 0x4b8a y abajo a la derecha
+L 0x4b8c pinta_cuatro_casillas_iguales
+C 0x4b8c arriba a la izquierda
+C 0x4b8e arriba a la derecha
+C 0x4b8f una fila mas abajo
+C 0x4b95 abajo a la izquierda
+C 0x4b97 y abajo a la derecha
+
+# ======================================================================
+# EL BOMBERO
+# ======================================================================
+B 0x4b99 ----------------------------------------------------------------------
+B 0x4b99 PINTA AL BOMBERO. El estado de (0xE30B) hace de indice de dibujo,
+B 0x4b99 y son tres tramos:
+B 0x4b99
+B 0x4b99   0        acaba de soltar una bomba: casilla 0x8A, con la bomba
+B 0x4b99            en la mano. Se pasa a 1 aqui mismo
+B 0x4b99   1        quieto: casilla 0x8C
+B 0x4b99   2..5     andando: 0xA0 mas el sentido por cuatro, mas el paso
+B 0x4b99   6..13    muriendose: 0x4E hacia ATRAS de dos en dos, hasta el
+B 0x4b99            0x40, que es un OUT verde encima de los restos
+B 0x4b99 ----------------------------------------------------------------------
+L 0x4b99 pinta_al_bombero
+C 0x4b99 el estado
+C 0x4b9c del seis para arriba, muriendose
+C 0x4ba0 del dos para arriba, andando
+C 0x4ba4 el cero solo dura un cuadro
+C 0x4ba7 y pasa a uno
+C 0x4bab el dibujo de la bomba en la mano
+L 0x4baf el_bombero_quieto
+C 0x4baf quieto
+L 0x4bb3 el_bombero_andando
+C 0x4bb3 el sentido, de 0 a 3
+C 0x4bb5 por cuatro
+C 0x4bb7 a partir de 0xA0
+C 0x4bba mas el paso, que vale 0 o 2
+L 0x4bc1 el_bombero_muriendose
+C 0x4bc1 el cuadro de la agonia, de 0 a 7
+C 0x4bc3 por dos
+C 0x4bc5 y hacia atras desde 0x4E: el ultimo es el 0x40
+L 0x4bc9 y_a_pintarlo
+C 0x4bc9 su fila
+C 0x4bcd y su columna
+C 0x4bd1 el cursor, en la PANTALLA
+C 0x4bd4 arriba a la izquierda
+C 0x4bd7 arriba a la derecha
+C 0x4bda una fila mas abajo, y 0x1E porque ya se avanzo dos
+C 0x4be1 el salto de dibujo, 0x0E por lo mismo
+C 0x4be4 abajo a la izquierda
+C 0x4be7 y abajo a la derecha
+
+B 0x4beb ----------------------------------------------------------------------
+B 0x4beb PINTA UNA CASILLA DEL BOMBERO Y MIRA SI LO MATAN. Lo que habia
+B 0x4beb debajo decide: de 0xC0 para arriba estan los enemigos y las
+B 0x4beb llamas, en ese orden y pegados a proposito, asi que con una sola
+B 0x4beb comparacion se cubren las dos formas de morir. Y como el bombero
+B 0x4beb se pinta DESPUES de los enemigos y de las llamas, lo que lee es
+B 0x4beb lo de este mismo cuadro.
+B 0x4beb ----------------------------------------------------------------------
+L 0x4beb pinta_una_casilla_del_bombero
+C 0x4beb lo que habia
+C 0x4bed y encima se pinta el bombero
+C 0x4bef la casilla siguiente y el dibujo siguiente
+C 0x4bf1 lo que habia
+C 0x4bf2 por debajo de 0xC0 no mata
+C 0x4bf5 y si ya se estaba muriendo, tampoco
+C 0x4bfb muerto: empieza la agonia
+
+B 0x4c09 ----------------------------------------------------------------------
+B 0x4c09 EL BOMBERO AVANZA: o anda, o se muere. Un cuadro de cada cuatro.
+B 0x4c09 La agonia son ocho cuadros mas, uno cada cuatro cuadros de los
+B 0x4c09 que llegan aqui, con un pitido que baja de tono en cada uno
+B 0x4c09 -escribiendo el estado por ocho en el registro 4 del PSG, que es
+B 0x4c09 el tono fino de la voz C-.
+B 0x4c09 ----------------------------------------------------------------------
+L 0x4c09 avanza_el_bombero
+C 0x4c09 un cuadro de cada cuatro
+C 0x4c0e el estado
+C 0x4c11 por debajo del seis esta vivo
+C 0x4c13 y anda
+C 0x4c15 el trece es el ultimo cuadro de la agonia
+C 0x4c17 y ahi se acabo
+C 0x4c19 la cuenta de la agonia, cada 4
+C 0x4c1f si no toca, se queda en este cuadro
+C 0x4c24 un cuadro mas de agonia
+C 0x4c2b por ocho
+C 0x4c2f al registro 4 del PSG: el tono baja segun se muere
+C 0x4c34 y el guion que va detras
+
+D 0x4c01 0x4c09 pasos_del_bombero  Cuatro parejas (columna, fila) que suma 0x4C78 segun el estado menos dos: abajo (0,+1), izquierda (-1,0), derecha (+1,0) y arriba (0,-1). El orden es el que dejan las cuatro comparaciones de 0x4C52 contra lo que devuelve GTSTCK
+F 0x4c01 2
+
+B 0x4c47 ----------------------------------------------------------------------
+B 0x4c47 Fin de la agonia. Solo se enciende la bandera; el bucle principal
+B 0x4c47 la ve en 0x4108 y descuenta la vida.
+B 0x4c47 ----------------------------------------------------------------------
+L 0x4c47 se_acabo_el_bombero
+C 0x4c47 y el bucle principal se encarga
+
+B 0x4c4d ----------------------------------------------------------------------
+B 0x4c4d MUEVE AL BOMBERO. Se lee el mando una sola vez por cuadro, asi
+B 0x4c4d que no hay diagonales. Las cuatro comparaciones contra lo que
+B 0x4c4d devuelve GTSTCK -5 abajo, 7 izquierda, 3 derecha, 1 arriba- son
+B 0x4c4d las que fijan el orden de la tabla de 0x4C01 y, de paso, el de
+B 0x4c4d los dibujos de andar.
+B 0x4c4d Y la comprobacion de lo que estorba es corta a proposito: solo
+B 0x4c4d paran el muro, el pilar y el ladrillo ENTERO. Un ladrillo a
+B 0x4c4d medio desmoronar (0x81..0x87) se puede pisar, y una bomba y un
+B 0x4c4d enemigo tambien: por eso se puede andar encima de la bomba que
+B 0x4c4d acabas de poner, y por eso se muere uno al meterse en un bicho.
+B 0x4c4d ----------------------------------------------------------------------
+L 0x4c4d mueve_al_bombero
+C 0x4c4d el primer sentido, abajo
+C 0x4c4f el mando, o las teclas
+C 0x4c52 abajo
+C 0x4c57 izquierda
+C 0x4c5c derecha
+C 0x4c61 arriba; y si no es ninguno, no se mueve
+L 0x4c64 hay_sentido_nuevo
+C 0x4c64 cambia el paso, que vale 0 o 2
+C 0x4c6c la tabla de los cuatro pasos
+C 0x4c70 el sentido nuevo, que sera el estado
+C 0x4c71 menos dos
+C 0x4c73 por dos
+C 0x4c78 la columna nueva
+C 0x4c7d y la fila nueva
+C 0x4c83 guardadas, que `pon_el_cursor` machaca BC
+C 0x4c87 nada estorba, de momento
+C 0x4c89 arriba a la izquierda
+C 0x4c8c arriba a la derecha
+C 0x4c8f una fila mas abajo, y 0x1E porque ya se avanzo dos
+C 0x4c95 abajo a la izquierda
+C 0x4c98 y abajo a la derecha
+C 0x4c9b algo estorba?
+C 0x4c9e pues no se mueve
+C 0x4c9f la fila nueva
+C 0x4ca3 la columna nueva
+C 0x4ca7 y el sentido, que tambien es el dibujo
+C 0x4cab MUERTO: nadie lee B despues de esto
+C 0x4cad el paso, 0 o 2
+C 0x4cb0 por dieciseis
+C 0x4cb8 mas 0x80: sale 0x80 o 0xA0
+C 0x4cbb al registro 4 del PSG: el tono fino de la voz C
+C 0x4cc0 y el guion que va detras: el ruidito del paso
+
+D 0x4c3b 0x4c47 guion_de_sonido_de_la_agonia  Lo instala 0x4C34 en (0xE307) en cada cuadro de la agonia: enciende la voz C en el mezclador y baja el volumen en tres cuadros
+D 0x4cc7 0x4cd4 guion_de_sonido_del_paso  Lo instala 0x4CC0 en (0xE307) en cada paso: la voz C, tres cuadros bajando el volumen de 0x0D a 0. El 0xC9 que sobra al final del bloque no lo lee nadie: el guion se acaba en el 0xFF doble de dos bytes antes
+
+B 0x4cd4 ----------------------------------------------------------------------
+B 0x4cd4 Mira si una casilla estorba, y lleva la cuenta en D. Estorban el
+B 0x4cd4 muro, el pilar y el ladrillo ENTERO -0x80 clavado-, y nada mas.
+B 0x4cd4 ----------------------------------------------------------------------
+L 0x4cd4 mira_si_la_casilla_estorba
+C 0x4cd4 lo que hay, y a la casilla siguiente
+C 0x4cd6 el muro
+C 0x4cdb el pilar
+C 0x4ce0 y el ladrillo entero, no el que se esta cayendo
+
+# ======================================================================
+# EL MARCADOR Y EL TABLERO
+# ======================================================================
+B 0x4ce5 ----------------------------------------------------------------------
+B 0x4ce5 EL MARCADOR DE ARRIBA, que ocupa la fila 0 entera y se reescribe
+B 0x4ce5 cada cuadro encima del muro que acaba de pintar 0x4DB7:
+B 0x4ce5
+B 0x4ce5     SCORE:nnnnnn BONUS:nnnnn STG:nn
+B 0x4ce5
+B 0x4ce5 El marcador lleva SEIS cifras porque 0x4F29 saca cinco y le pega
+B 0x4ce5 un cero detras: los puntos se ensenan multiplicados por diez. Al
+B 0x4ce5 bonus se le quita ese cero de mas -el `dec bc` de 0x4D2A- y en su
+B 0x4ce5 sitio queda el espacio con el que empieza " STG:", que se escribe
+B 0x4ce5 ANTES a proposito para que encaje.
+B 0x4ce5 Aqui se actualiza tambien el record. El `sbc hl,bc` va sin borrar
+B 0x4ce5 el acarreo, y en las fases de una cifra viene puesto de 0x4F19,
+B 0x4ce5 asi que la comparacion sale una unidad corrida: el record se
+B 0x4ce5 reescribe tambien cuando es igual al marcador, que da lo mismo.
+B 0x4ce5 ----------------------------------------------------------------------
+L 0x4ce5 pinta_el_marcador
+C 0x4ce5 fila 0, columna 1
+C 0x4ce8 "SCORE:"
+C 0x4cee columna 13
+C 0x4cf1 " BONUS:"
+C 0x4cf7 columna 25
+C 0x4cfa " STG:"
+C 0x4d00 columna 30
+C 0x4d03 la fase
+C 0x4d06 una o dos cifras
+C 0x4d09 el marcador
+C 0x4d0d contra el record
+C 0x4d12 si el record es mayor, se queda
+C 0x4d14 y si no, marca nueva
+L 0x4d18 pinta_las_cifras
+C 0x4d18 columna 7
+C 0x4d1b el marcador
+C 0x4d1e cinco cifras y un cero
+C 0x4d21 columna 20
+C 0x4d24 el bonus
+C 0x4d27 lo mismo
+C 0x4d2a pero al bonus se le quita el cero de mas
+C 0x4d2b y se deja el espacio de " STG:"
+C 0x4d2e fila 23, columna 1
+C 0x4d31 " BOMBERMAN HUDSON SOFT 1983"
+
+B 0x4d37 ----------------------------------------------------------------------
+B 0x4d37 EL AVISO DE BOMBA AUTOMATICA, que solo sale en las fases
+B 0x4d37 multiplos de cuatro: la misma condicion que 0x4922, donde el
+B 0x4d37 juego deja de pedir el disparo. Parpadea encima del rotulo de
+B 0x4d37 abajo, dieciseis cuadros puesto y ocho quitado.
+B 0x4d37 ----------------------------------------------------------------------
+L 0x4d37 pinta_el_aviso_de_bomba_automatica
+C 0x4d37 la fase
+C 0x4d3a solo las multiplos de cuatro
+C 0x4d3d fila 23, columna 1
+C 0x4d40 toca ensenarlo?
+C 0x4d46 la cuenta de dieciseis cuadros
+C 0x4d4c "  BOMB AUTO SETTING STAGE "
+L 0x4d52 quita_el_aviso
+C 0x4d52 y si no toca, veintiseis columnas
+C 0x4d56 en blanco
+C 0x4d5b la cuenta de ocho cuadros
+C 0x4d61 si no cuadra, sigue quitado
+C 0x4d66 y cuando cuadra, vuelve a ponerse
+
+D 0x4d6c 0x4d87 texto_bomba_automatica  El rotulo que parpadea en la fila 23 en las fases multiplos de cuatro. Dibujado desde la ROM dice "  BOMB AUTO SETTING STAGE ", y esta escrito con casillas de tres bloques de graficos distintos: la B, la O y la U de 0x5B26, la T y la G de 0x5B7C, y la M, la A, la I y la N de la pantalla de titulo, que en la partida no se sobreescriben
+D 0x4d87 0x4d8e texto_score  "SCORE:", en la fila 0 columna 1
+D 0x4d8e 0x4d96 texto_bonus  " BONUS:", en la fila 0 columna 13
+D 0x4d96 0x4d9c texto_stg  " STG:", en la fila 0 columna 25. El espacio del principio es el que tapa el cero de mas del bonus
+D 0x4d9c 0x4db7 texto_de_la_firma  " BOMBERMAN HUDSON SOFT 1983", en la fila 23, y el unico sitio donde el juego se firma mientras se juega
+
+B 0x4db7 ----------------------------------------------------------------------
+B 0x4db7 EL TABLERO: el marco y los pilares. Se repinta ENTERO cada cuadro
+B 0x4db7 y solo en la pantalla de arriba, nunca en el tablero de abajo, y
+B 0x4db7 por eso el muro y el pilar no se pueden romper: no estan donde
+B 0x4db7 las llamas escriben.
+B 0x4db7 El marco son la fila 0, la 23 y las dos columnas de los lados; los
+B 0x4db7 pilares, treinta y cinco cuadrados de dos por dos cada cuatro
+B 0x4db7 filas y cada cuatro columnas, o sea las casillas de tablero con
+B 0x4db7 las DOS coordenadas impares. El area de juego que queda son 22
+B 0x4db7 filas por 30 columnas, o sea 11 por 15 casillas de tablero.
+B 0x4db7 ----------------------------------------------------------------------
+L 0x4db7 pinta_el_tablero
+C 0x4db7 el muro
+C 0x4db9 treinta y dos casillas
+C 0x4dbb la fila 0 entera
+L 0x4dbe otra_casilla_de_la_fila_0
+C 0x4dc0 hasta acabarla
+C 0x4dc2 otras treinta y dos
+C 0x4dc4 la fila 23
+L 0x4dc7 otra_casilla_de_la_fila_23
+C 0x4dc9 hasta acabarla
+C 0x4dcb veintitres filas
+C 0x4dcd empezando por la columna 31 de la fila 0
+C 0x4dd0 y de dos en dos, saltando 31: cae en la 31 y en la 0 de la siguiente
+L 0x4dd3 otra_pareja_de_los_lados
+C 0x4dd3 la columna 31
+C 0x4dd5 y la 0 de la fila de abajo
+C 0x4dd6 a la pareja siguiente
+C 0x4dd9 el primer pilar: fila 3, columna 3
+C 0x4ddc cinco filas de pilares
+C 0x4dde el pilar
+L 0x4de0 otra_fila_de_pilares
+C 0x4de0 siete por fila
+L 0x4de2 otro_pilar_de_la_fila
+C 0x4de2 el cuadrado de dos por dos
+C 0x4de6 y cuatro columnas a la derecha: 0x21 menos 0x1D
+C 0x4ded al primero de la fila siguiente, cuatro filas mas abajo
+C 0x4df1 hasta las cinco filas
+L 0x4df5 pinta_un_pilar
+C 0x4df5 arriba a la izquierda
+C 0x4df7 arriba a la derecha
+C 0x4df8 una fila mas abajo
+C 0x4dfc abajo a la izquierda
+C 0x4dfe y abajo a la derecha
+
+B 0x4e00 ----------------------------------------------------------------------
+B 0x4e00 LAS VIDAS, abajo a la derecha: una tira de un solo rotulo con el
+B 0x4e00 dibujo del bombero y los dos puntos, y detras la cifra. El truco
+B 0x4e00 es que `pinta_una_tira_de_rotulos` deja BC apuntando al byte de
+B 0x4e00 despues del texto, asi que con un `dec bc` se cae justo en el
+B 0x4e00 espacio que el rotulo dejo reservado.
+B 0x4e00 ----------------------------------------------------------------------
+L 0x4e00 pinta_las_vidas
+C 0x4e00 la tira, de un solo rotulo
+C 0x4e06 el hueco que quedo detras de los dos puntos
+C 0x4e07 las vidas que quedan
+C 0x4e0a puestas ahi como cifra
+
+D 0x4e0c 0x4e15 rotulo_de_las_vidas  Un solo rotulo (fila 23, columna 26) con el texto "  " + la casilla 0x90 -el bombero- + ":" + un espacio, cerrado por 0x00, y el 0xFF que cierra la tira. En ese espacio del final escribe 0x4E07 el numero de vidas
+F 0x4e0c 9
+
+# ======================================================================
+# COMO SE SIEMBRA UNA FASE
+# ======================================================================
+# 0x4E35 monta la fase entera y no guarda ningun mapa: los treinta y cinco
+# ladrillos se escriben directamente en el tablero y ahi se quedan. Lo unico
+# que se apunta aparte es DONDE cayo el primero -que es el que esconde el
+# premio- y donde cayo el ultimo -que es el que esconde la puerta-, porque
+# 0x4EB1 solo guarda el premio la primera vez y la puerta TODAS, asi que la
+# ultima gana.
+#
+# Las reglas del sorteo, en este orden:
+#   1. la casilla tiene que estar a dos o mas del sitio del bombero
+#   2. de las dos coordenadas, UNA tiene que ser impar y la otra par. Con las
+#      dos impares caeria encima de un pilar; con las dos pares, en las
+#      casillas que el juego deja siempre libres
+#   3. no puede ser ninguna de las ocho de la tabla de 0x4EDF, que son las
+#      esquinas por donde salen los enemigos y sus vecinas
+# No se mira si ya hay un ladrillo ahi, asi que dos pueden caer en la misma
+# casilla y salir menos de treinta y cinco.
+B 0x4e15 ----------------------------------------------------------------------
+B 0x4e15 UNA CASILLA DE TABLERO AL AZAR: columna de 0 a 14 y fila de 0 a
+B 0x4e15 10, sorteando otra vez lo que se salga. Las quince por once son
+B 0x4e15 el tablero entero.
+B 0x4e15 ----------------------------------------------------------------------
+L 0x4e15 una_casilla_al_azar
+C 0x4e15 un numero al azar
+C 0x4e18 de 0 a 31
+C 0x4e1a de 15 para arriba no vale
+C 0x4e1e la columna
+L 0x4e1f sortea_la_fila
+C 0x4e1f otro
+C 0x4e22 de 0 a 31
+C 0x4e24 de 11 para arriba no vale
+C 0x4e28 y la fila
+
+B 0x4e2a ----------------------------------------------------------------------
+B 0x4e2a DE CASILLA DE TABLERO A CASILLA DE PANTALLA: por dos y uno mas.
+B 0x4e2a Aqui es donde se ve que el tablero de 15 por 11 esta metido en
+B 0x4e2a una pantalla de 32 por 24 dejando el marco fuera.
+B 0x4e2a ----------------------------------------------------------------------
+L 0x4e2a de_casilla_a_pantalla
+C 0x4e2a la fila por dos
+C 0x4e2c y una mas
+C 0x4e2f la columna por dos
+C 0x4e31 y una mas
+
+B 0x4e35 ----------------------------------------------------------------------
+B 0x4e35 SIEMBRA LA FASE: primero el sitio del bombero y luego los treinta
+B 0x4e35 y cinco ladrillos. El bombero se sortea entre las casillas 2 y 12
+B 0x4e35 de ancho y 2 y 8 de alto -o sea nunca en el borde- y tiene que
+B 0x4e35 caer en una casilla vacia, que es como se evita que salga dentro
+B 0x4e35 de un pilar.
+B 0x4e35 ----------------------------------------------------------------------
+L 0x4e35 siembra_la_fase
+C 0x4e35 una casilla al azar
+C 0x4e38 la columna
+C 0x4e39 guardada: es la referencia de la que se separan los ladrillos
+C 0x4e3c de la 2 a la 12
+C 0x4e44 la fila
+C 0x4e45 guardada por lo mismo
+C 0x4e48 de la 2 a la 8
+C 0x4e50 a casillas de pantalla
+C 0x4e54 el cursor
+C 0x4e57 tiene que estar vacia: si hay pilar, otra vez
+C 0x4e5d la columna del bombero
+C 0x4e61 y su fila
+C 0x4e65 y treinta y cinco ladrillos
+L 0x4e67 otro_ladrillo
+C 0x4e67 la cuenta, guardada en A'
+L 0x4e68 busca_sitio_para_un_ladrillo
+C 0x4e68 una casilla al azar
+C 0x4e6b guardada
+C 0x4e6d contra la columna del bombero
+C 0x4e71 en valor absoluto
+L 0x4e75 mira_la_distancia_en_columna
+C 0x4e75 a dos o mas de distancia vale
+C 0x4e79 y si no, se mira la fila
+C 0x4e7d en valor absoluto
+L 0x4e81 mira_la_distancia_en_fila
+C 0x4e81 a dos o mas vale
+C 0x4e85 y si no, otra casilla
+L 0x4e87 mira_las_paridades
+C 0x4e87 la columna
+C 0x4e88 impar?
+C 0x4e8c pues la fila tiene que ser par
+C 0x4e8f las dos impares es un pilar: otra casilla
+L 0x4e93 columna_par
+C 0x4e93 columna par: la fila tiene que ser impar
+C 0x4e96 las dos pares no se usan: otra casilla
+L 0x4e98 pon_el_ladrillo
+C 0x4e98 a casillas de pantalla
+C 0x4e9b la lista de casillas prohibidas
+L 0x4e9e mira_la_lista_de_prohibidas
+C 0x4e9e con 0xFF se acabo la lista
+C 0x4ea3 la fila
+C 0x4ea8 y la columna
+C 0x4ea9 prohibida: otra casilla
+L 0x4ead solo_coincidia_la_fila
+C 0x4ead solo coincidia la fila
+L 0x4eae a_la_pareja_siguiente
+C 0x4eae a la pareja siguiente
+L 0x4eb1 apunta_el_premio
+C 0x4eb1 el premio ya esta puesto?
+C 0x4eb5 pues este ladrillo solo lleva puerta
+C 0x4eb7 y si no, este es el primero: aqui va el premio
+C 0x4ebf puesto
+L 0x4ec4 apunta_la_puerta
+C 0x4ec4 la puerta se apunta SIEMPRE, asi que se queda en el ultimo
+C 0x4ecc puesta
+C 0x4ed1 el cursor, en el TABLERO
+C 0x4ed4 el ladrillo entero
+C 0x4ed6 las cuatro casillas
+C 0x4ed9 la cuenta
+C 0x4eda hasta los treinta y cinco
+
+D 0x4edf 0x4ef0 casillas_prohibidas  Ocho parejas (fila, columna) de pantalla y el 0xFF que cierra, que mira 0x4E9E antes de poner un ladrillo: (1,3), (3,1), (19,1), (21,3), (1,27), (3,29), (21,27) y (19,29). Son las vecinas de las cuatro esquinas por donde salen los enemigos -las de 0x45C6-, para que no salgan tapiados
+F 0x4edf 2
+
+B 0x4ef0 ----------------------------------------------------------------------
+B 0x4ef0 BORRA UNA CASILLA DE TABLERO. Nueve bytes que SON INSTRUCCIONES y
+B 0x4ef0 que no llama nadie: no hay un solo `call 4EF0h` en los 8 KB. Es
+B 0x4ef0 lo mismo que hace 0x4A7A dentro de otra rutina, asi que lo que
+B 0x4ef0 queda aqui es la version suelta que dejo de usarse. Se declara
+B 0x4ef0 como codigo porque eso es lo que es, no porque se ejecute.
+B 0x4ef0 ----------------------------------------------------------------------
+L 0x4ef0 borra_una_casilla_de_tablero
+C 0x4ef0 el cursor, en el TABLERO
+C 0x4ef3 casilla vacia
+C 0x4ef5 las cuatro
+
+# ======================================================================
+# LAS HERRAMIENTAS
+# ======================================================================
+B 0x4ef9 ----------------------------------------------------------------------
+B 0x4ef9 EL AZAR. Una realimentacion de dieciseis bits sobre (0xE384) que
+B 0x4ef9 ADEMAS mezcla el registro R, o sea el contador de refresco de la
+B 0x4ef9 memoria. Eso hace que la serie no dependa solo de la semilla:
+B 0x4ef9 depende de cuantas instrucciones se hayan ejecutado antes, y por
+B 0x4ef9 tanto de cuando se pulso el disparo. Dos partidas no reparten los
+B 0x4ef9 mismos ladrillos ni aunque se arranque igual.
+B 0x4ef9 ----------------------------------------------------------------------
+L 0x4ef9 numero_al_azar
+C 0x4efc la semilla
+C 0x4eff el bit que va a entrar, de mezclar H con L
+C 0x4f04 guardado en el acarreo
+C 0x4f05 H se mezcla con L
+C 0x4f08 y L con el contador de refresco de la memoria
+C 0x4f0c el bit guardado
+C 0x4f0d y entra por abajo
+C 0x4f11 la semilla nueva
+C 0x4f14 lo que se devuelve es el byte de abajo
+
+B 0x4f19 ----------------------------------------------------------------------
+B 0x4f19 UN NUMERO DE UNA O DOS CIFRAS en (BC). Por debajo de diez cabe en
+B 0x4f19 una casilla; a partir de ahi se saca la decena con la division
+B 0x4f19 por restas de 0x4F48 y la unidad se escribe detras.
+B 0x4f19 ----------------------------------------------------------------------
+L 0x4f19 escribe_un_numero_corto
+C 0x4f19 menos de diez
+C 0x4f1d el numero, en HL
+C 0x4f20 dividido entre diez: la decena se escribe sola
+C 0x4f26 y lo que sobra es la unidad
+L 0x4f27 escribe_la_cifra
+C 0x4f27 a la pantalla
+
+B 0x4f29 ----------------------------------------------------------------------
+B 0x4f29 CINCO CIFRAS Y UN CERO en (BC), que es como se ensenan el
+B 0x4f29 marcador y el bonus. Las cuatro primeras salen de restar 10000,
+B 0x4f29 1000, 100 y 10; la quinta es lo que sobra; y el cero del final se
+B 0x4f29 pone a mano, o sea que el marcador de verdad va multiplicado por
+B 0x4f29 diez. Al bonus ese cero se lo quita quien llama.
+B 0x4f29 ----------------------------------------------------------------------
+L 0x4f29 escribe_cinco_cifras_y_un_cero
+C 0x4f29 las decenas de millar
+C 0x4f2f los millares
+C 0x4f35 las centenas
+C 0x4f3b las decenas
+C 0x4f41 y lo que queda son las unidades
+C 0x4f44 y un cero de propina
+L 0x4f48 saca_una_cifra
+C 0x4f48 la cifra empieza en cero
+L 0x4f49 resta_hasta_pasarse
+C 0x4f4a se resta hasta pasarse
+C 0x4f4e y cada resta es una unidad
+L 0x4f51 devuelve_lo_que_sobra
+C 0x4f51 se devuelve lo que se paso
+C 0x4f52 la cifra, a la pantalla
+
+B 0x4f55 ----------------------------------------------------------------------
+B 0x4f55 LAS DOS PANTALLAS EN LA RAM, y las tres rutinas que las manejan.
+B 0x4f55 0x4F55 deja el TABLERO en blanco, 0x4F63 lo copia encima de la
+B 0x4f55 PANTALLA -es la primera cosa que hace cada cuadro- y 0x4F6F da la
+B 0x4f55 direccion de una casilla del tablero sumandole 0x38A a la de la
+B 0x4f55 pantalla, que es lo que separa las dos.
+B 0x4f55 ----------------------------------------------------------------------
+L 0x4f55 borra_el_tablero
+C 0x4f55 el tablero
+C 0x4f58 y su copia desplazada uno, que es como se rellena con LDIR
+C 0x4f5b 767 bytes
+C 0x4f5e la casilla vacia en el primero
+L 0x4f63 copia_el_tablero_a_la_pantalla
+C 0x4f63 la pantalla
+C 0x4f66 desde el tablero
+C 0x4f69 los 768 bytes de golpe
+L 0x4f6f pon_el_cursor_en_el_tablero
+C 0x4f70 la casilla en la pantalla
+C 0x4f73 y 0x38A mas alla esta la misma en el tablero
+
+B 0x4f7b ----------------------------------------------------------------------
+B 0x4f7b LA ESPERA, que es lo unico que marca el ritmo del juego: no hay
+B 0x4f7b sincronismo con el barrido de la pantalla, solo un bucle en
+B 0x4f7b vacio. 0x4F7B es la larga, la de la muerte; el bucle de dentro lo
+B 0x4f7b usa tambien 0x46C8 con 0x500, que es el paso normal.
+B 0x4f7b ----------------------------------------------------------------------
+L 0x4f7b espera_larga
+C 0x4f7b 0x5000 vueltas
+L 0x4f7e espera
+C 0x4f7e una menos
+C 0x4f7f hasta cero
+
+B 0x4f84 ----------------------------------------------------------------------
+B 0x4f84 OTRA ESPERA, de 0x400 vueltas, que no llama nadie: no hay un solo
+B 0x4f84 `call 4F84h` en los 8 KB. Es la hermana pequena de 0x4F7B y se
+B 0x4f84 quedo dentro. Se declara como codigo porque son instrucciones,
+B 0x4f84 no porque se ejecute.
+B 0x4f84 ----------------------------------------------------------------------
+L 0x4f84 espera_corta_que_no_usa_nadie
+C 0x4f84 0x400 vueltas
+C 0x4f87 una menos
+C 0x4f88 hasta cero
+
+D 0x4f8d 0x4fd1 brazos_de_la_explosion  Los cuatro brazos de la explosion, en OCHO tiras de cuatro parejas (fila, columna) que suma 0x4AB4 a la casilla de la bomba, y cuatro 0x80 que cierran la tabla. Izquierda: (0,-1)(0,-2)(0,-3)(0,-4) y la misma tira una fila mas abajo. Derecha: (0,+2)..(0,+5) y su pareja. Arriba: (-1,0)..(-4,0) y la misma una columna a la derecha. Abajo: (+2,0)..(+5,0) y su pareja. Cuatro casillas de pantalla por lado son DOS casillas de tablero, que es el alcance de la explosion
+F 0x4f8d 8
+
+# ======================================================================
+# LOS VALORES DE PARTIDA DE LA RAM
+# ======================================================================
+# 0x4FD1 es la primera de las tres llamadas de INIT, y lo que hace es un `ldir`
+# de 0x90 bytes desde 0x4FDD a 0xE305. O sea que las variables del juego no
+# arrancan a cero: arrancan con esta tabla, y por eso (0xE305) y (0xE307) -los
+# dos punteros de sonido- ya valen algo antes de tocar nada: 0x4539 los dos,
+# que son las dos primeras palabras del bloque.
+#
+# Lo que de verdad importa de esta tabla son los SEIS TOPES de los contadores,
+# que son los que fijan la velocidad de todo el juego y no se tocan nunca mas:
+#
+#     0xE370 = 4    el paso del bombero
+#     0xE372 = 4    su agonia
+#     0xE374 = 7    el enemigo reventando
+#     0xE376 = 5    el paso de los enemigos
+#     0xE378 = 3    la bomba y el ladrillo desmoronandose
+#     0xE37A = 0x32 el bonus, o sea uno de cada cincuenta cuadros
+#
+# y los dos 0xFF de 0xE354 y 0xE36D, que son los que cierran la lista de ocho
+# enemigos y la de cinco bombas.
+#
+# OJO, EL `ldir` COPIA DE MAS. 0x4FDD + 0x90 = 0x506D, y el codigo de
+# `monta_el_vdp` empieza en 0x5062: los once ultimos bytes que se copian a la
+# RAM son las primeras instrucciones de esa rutina, no datos. Aqui el bloque se
+# declara solo hasta donde es dato de verdad.
+
+D 0x4fdd 0x5062 valores_de_partida_de_la_ram  Lo que 0x4FD1 vuelca en 0xE305 con un `ldir` de 0x90 bytes. Las dos primeras palabras son 0x4539 repetido, que son los punteros de sonido de arranque; los seis topes de los contadores estan en 0xE370, 72, 74, 76, 78 y 7A, y los dos 0xFF de 0xE354 y 0xE36D cierran las listas de enemigos y de bombas. El `ldir` se pasa once bytes y arrastra el principio de `monta_el_vdp`
+
+L 0x4fd1 pon_los_valores_de_partida
+C 0x4fd1 la tabla
+C 0x4fd4 a las variables del juego
+C 0x4fd7 0x90 bytes, once mas de los que son datos
 
 # ======================================================================
 # EL VDP Y EL PSG
 # ======================================================================
 B 0x5062 ----------------------------------------------------------------------
 B 0x5062 Deja la maquina lista: quita el gancho de la BIOS, vuelca los ocho
-B 0x5062 registros del VDP desde 0x5144 y apaga la lista de sprites.
+B 0x5062 registros del VDP desde 0x5144 y apaga la lista de sprites. Ese
+B 0x5062 0xD0 es lo unico que el cartucho hace con los sprites en toda su
+B 0x5062 vida: no usa ni uno.
 B 0x5062 ----------------------------------------------------------------------
 L 0x5062 monta_el_vdp
+C 0x5062 sin interrupciones mientras se toca el VDP
 C 0x5065 un `ret` en H.TIMI: la BIOS deja de meter mano cada interrupcion
 C 0x506a los ocho registros
 C 0x506c empezando por el 0
 C 0x506e la tabla de 0x5144
+L 0x5071 vuelca_un_registro
+C 0x5071 el valor
 C 0x5072 BIOS WRTVDP
+C 0x5075 un `push hl / pop hl` que no hace nada: sobra
+C 0x5077 al registro siguiente
 C 0x507c los atributos de sprite, en 0x1C00
 C 0x507f un 0xD0 en el primero: no hay ni un sprite
+C 0x5081 BIOS WRTVRM
+C 0x5084 y ya se puede interrumpir
 
 B 0x5088 ----------------------------------------------------------------------
 B 0x5088 CARGA UN BLOQUE DE GRAFICOS EN LOS TRES TERCIOS.
@@ -165,8 +1988,9 @@ B 0x5088 ----------------------------------------------------------------------
 L 0x5088 carga_los_graficos_en_los_tres_tercios
 C 0x5088 el primer tercio
 C 0x508c el segundo, 0x800 mas alla
-C 0x5091 y el tercero
+C 0x5091 y el tercero, cayendo dentro
 L 0x5093 carga_un_tercio
+C 0x5093 el principio del bloque, para las tres vueltas
 C 0x5094 el destino en la VRAM
 C 0x5098 mas el tercio que toque
 C 0x509b y 0x2000 mas arriba, la tabla de color
@@ -175,21 +1999,103 @@ C 0x50a2 el cero vale 256
 C 0x50a8 por ocho, que es lo que ocupa una casilla
 C 0x50b1 BIOS LDIRVM: los patrones de golpe
 L 0x50b6 rellena_el_color
+C 0x50b6 el color
 C 0x50b8 con 0xFF se acabo
 C 0x50bd cuantas casillas del mismo color
+C 0x50c2 y aqui el cero tambien vale 256
 C 0x50c6 BIOS FILVRM
 C 0x50ca y a por el tramo siguiente
+L 0x50cd y_al_tercio_siguiente
+C 0x50cd el principio del bloque, para el tercio siguiente
 
+B 0x50cf ----------------------------------------------------------------------
+B 0x50cf Un registro del PSG: D el registro y E el valor. La BIOS pide el
+B 0x50cf registro en A, y por eso hace falta el `ld a,d`.
+B 0x50cf ----------------------------------------------------------------------
 L 0x50cf escribe_en_el_psg
 C 0x50cf D es el registro y E el valor
-C 0x50d2 BIOS WRTPSG
+C 0x50d0 la BIOS lo quiere en A
+C 0x50d1 BIOS WRTPSG
 
-D 0x5144 0x514c registros_del_vdp  Los ocho registros que 0x5062 vuelca del 0 al 7: SCREEN 2, sprites de 16x16, nombres en 0x1800, atributos en 0x1C00 y patrones de sprite en 0x3800
+B 0x50d6 ----------------------------------------------------------------------
+B 0x50d6 EL REGISTRO 7 DEL VDP, que es el color de la tinta y el del borde.
+B 0x50d6 Once bytes que SON INSTRUCCIONES y que no llama nadie: no hay un
+B 0x50d6 solo `call 50D6h` en los 8 KB. El registro 7 se pone una vez, al
+B 0x50d6 arrancar, desde la tabla de 0x5144, y no se vuelve a tocar; esta
+B 0x50d6 rutina es lo que se dejo dentro de cuando se pensaba cambiarlo.
+B 0x50d6 Se declara como codigo porque eso es lo que es.
+B 0x50d6 ----------------------------------------------------------------------
+L 0x50d6 pon_el_registro_7_que_no_usa_nadie
+C 0x50d6 el valor, que la BIOS quiere en B
+C 0x50d8 el registro 7
+C 0x50da sin interrupciones
+C 0x50db BIOS WRTVDP
+C 0x50de y ya se puede interrumpir
+
+B 0x50e1 ----------------------------------------------------------------------
+B 0x50e1 EL MANDO. Se prueban las tres entradas de GTSTCK -0 el teclado, 1
+B 0x50e1 y 2 los dos mandos- y se devuelve la primera que diga algo. La
+B 0x50e1 misma idea con GTTRIG para el disparo, y por eso vale igual el
+B 0x50e1 espacio que el boton.
+B 0x50e1 ----------------------------------------------------------------------
+L 0x50e1 lee_la_cruceta
+C 0x50e4 el teclado
+C 0x50e5 BIOS GTSTCK
+C 0x50e8 si dice algo, ya esta
+C 0x50eb el mando 1
+C 0x50f3 y el mando 2
+L 0x50fc lee_el_disparo
+C 0x50fc el teclado
+C 0x50fd BIOS GTTRIG, que devuelve 0xFF si esta pulsado
+C 0x5100 si dice algo, ya esta
+C 0x5102 el mando 1
+C 0x5109 y el mando 2, con el `ret` de la BIOS
+
+B 0x510e ----------------------------------------------------------------------
+B 0x510e VUELCA LA PANTALLA Y LA DEJA EN BLANCO, en ese orden: LDIRVM de
+B 0x510e los 768 bytes de 0xE000 a la tabla de nombres, y despues un
+B 0x510e `ldir` que la rellena de casilla vacia. Por eso el bucle
+B 0x510e principal puede repintarlo todo desde cero cada cuadro sin
+B 0x510e borrar nada a mano. La segunda mitad tiene etiqueta propia
+B 0x510e porque tambien se llama sola.
+B 0x510e ----------------------------------------------------------------------
+L 0x510e vuelca_la_pantalla
+C 0x510e la pantalla de la RAM
+C 0x5111 a la tabla de nombres
+C 0x5114 los 768 bytes
+C 0x5117 BIOS LDIRVM
+L 0x511a borra_la_pantalla
+C 0x511a la pantalla
+C 0x511d y su copia desplazada uno
+C 0x5120 767 bytes
+C 0x5123 la casilla vacia en el primero
+
+B 0x5128 ----------------------------------------------------------------------
+B 0x5128 EL CURSOR: fila por 32 mas columna, sobre 0xE000. Los cinco
+B 0x5128 `add hl,hl` son la multiplicacion por 32. Devuelve la direccion
+B 0x5128 en BC, que es lo que esperan todas las rutinas de pintar.
+B 0x5128 ----------------------------------------------------------------------
+L 0x5128 pon_el_cursor
+C 0x5129 la fila
+C 0x512c por 32
+C 0x5131 mas la columna
+C 0x5134 sobre la pantalla de la RAM
+C 0x5138 y se devuelve en BC
+
+B 0x513c ----------------------------------------------------------------------
+B 0x513c SUELTA UN TEXTO en (BC) hasta el 0x00. Los codigos NO son ASCII:
+B 0x513c son casillas de la hoja que este cargada, y cambian entre la
+B 0x513c portada y la partida. Al volver, BC apunta al byte de despues del
+B 0x513c ultimo, que es de lo que se aprovecha 0x4E00 para las vidas.
+B 0x513c ----------------------------------------------------------------------
+L 0x513c suelta_un_texto
+C 0x513c la casilla
+C 0x513e con 0x00 se acabo
+C 0x5140 a la pantalla
+C 0x5142 y a la siguiente
+
+D 0x5144 0x514c registros_del_vdp  Los ocho registros que 0x5062 vuelca del 0 al 7: SCREEN 2, sprites de 16x16, nombres en 0x1800, atributos en 0x1C00 y patrones de sprite en 0x3800. Los de sprite se declaran y no se usan: el juego no pinta ni uno
 F 0x5144 8
-
-D 0x514c 0x5b26 graficos_de_la_pantalla_de_titulo  El bloque que carga 0x427F: destino 0x0000, 256 casillas de patrones y 235 tramos de color. Lo vuelca 0x5088 en los tres tercios
-D 0x5b26 0x5b7c graficos_1  Destino 0x0080, 10 casillas y un solo tramo de color. Lo carga 0x4074
-D 0x5b7c 0x5e38 graficos_2  Destino 0x0100, 64 casillas y 92 tramos de color. Lo carga 0x407A
 
 # ======================================================================
 # LOS GUIONES DE SONIDO
@@ -204,48 +2110,44 @@ D 0x5b7c 0x5e38 graficos_2  Destino 0x0100, 64 casillas y 92 tramos de color. Lo
 # El de 0x41D0 se lee entero y cuadra clavado en 0x41EB: siete cuadros bajando
 # el registro 4 -el tono fino de la voz B- de 0xEE a 0x7E, o sea subiendo de
 # nota, y un ultimo cuadro que pone el volumen de la voz C a cero.
-
-D 0x41d0 0x41eb guion_de_sonido_41D0  Ocho cuadros de parejas (registro, valor) separados por 0xFF y cerrados por un 0xFF doble; lo instala 0x41BD en (0xE307). Sube el tono de la voz B de 0xEE a 0x7E y apaga la voz C
-D 0x450f 0x453b guion_de_sonido_450F  Lo instala 0x4508 en (0xE305)
-D 0x4892 0x48a5 guion_de_sonido_4892  Lo instala 0x488A en (0xE305)
-D 0x4c3b 0x4c47 guion_de_sonido_4C3B  Lo instala 0x4C34 en (0xE307)
-D 0x4cc7 0x4cd4 guion_de_sonido_4CC7  Lo instala 0x4CC0 en (0xE307)
-
-# ======================================================================
-# LOS GRAFICOS QUE SE ANIMAN
-# ======================================================================
-# 0x4167 lleva un contador en (0xE310) y con sus bits elige una entrada de la
-# tabla de 0x419B: `and 003h` decide si toca cambiar y `and 00Ch` da el
-# desplazamiento dentro de la tabla. Las DIECISEIS palabras de esa tabla caen
-# TODAS dentro de 0x5E38..0x5F9A, y la mas baja es 0x5E38 justo, que es donde
-# empieza el ultimo bloque de datos del cartucho. Eso es lo que dice que ese
-# bloque son los dibujos que la tabla reparte, y no otra cosa.
-
-D 0x419b 0x41bb punteros_de_los_dibujos  Dieciseis palabras, todas dentro de 0x5E38..0x5F9A. 0x4171 las indexa con el contador de cuadros de (0xE310)
-F 0x419b w
-
-D 0x5e38 0x6000 dibujos_que_apunta_0x419B  Los 456 bytes del final del cartucho, que son a lo que apuntan las dieciseis palabras de 0x419B. La primera de ellas es 0x5E38 exacto, o sea el principio de este bloque
-
-# ======================================================================
-# LOS VALORES DE PARTIDA DE LA RAM
-# ======================================================================
-# 0x4FD1 es la primera de las tres llamadas de INIT, y lo que hace es un `ldir`
-# de 0x90 bytes desde 0x4FDD a 0xE305. O sea que las variables del juego no
-# arrancan a cero: arrancan con esta tabla, y por eso (0xE305) y (0xE307) -los
-# dos punteros de sonido- ya valen algo antes de tocar nada: 0x4539 los dos,
-# que son las dos primeras palabras del bloque.
 #
-# OJO, EL `ldir` COPIA DE MAS. 0x4FDD + 0x90 = 0x506D, y el codigo de
-# `monta_el_vdp` empieza en 0x5062: los once ultimos bytes que se copian a la
-# RAM son las primeras instrucciones de esa rutina, no datos. Aqui el bloque se
-# declara solo hasta donde es dato de verdad.
+# Los cinco guiones que hay son la fanfarria de la puerta, el premio recogido,
+# el enemigo reventando, la agonia del bombero y el paso. Todo lo demas -el
+# apagon del arranque, el pitido del bonus y el trueno de la explosion- va
+# incrustado detras de su `call`, que es mas corto.
 
-D 0x4fdd 0x5062 valores_de_partida_de_la_ram  Lo que 0x4FD1 vuelca en 0xE305 con un `ldir` de 0x90 bytes. Las dos primeras palabras son 0x4539 repetido, que son los punteros de sonido de arranque. El `ldir` se pasa once bytes y arrastra el principio de `monta_el_vdp`
+# ======================================================================
+# LOS GRAFICOS
+# ======================================================================
+# Los tres bloques teselan sin un hueco -0x514C..0x5B26..0x5B7C..0x5E38- y eso
+# es lo que prueba que el formato esta bien leido: si el recuento de casillas o
+# el de tramos de color estuviera mal por un byte, el bloque siguiente no
+# empezaria donde empieza.
+#
+# El primero es la portada entera, 256 casillas. Los otros dos son los parches
+# de la partida: donde la portada tiene el rotulo GRANDE, la partida pone los
+# enemigos y las letras del marcador.
 
-L 0x4fd1 pon_los_valores_de_partida
-C 0x4fd1 la tabla
-C 0x4fd4 a las variables del juego
-C 0x4fd7 0x90 bytes, once mas de los que son datos
+D 0x514c 0x5b26 graficos_de_la_portada  El bloque que carga 0x427F: destino 0x0000, 256 casillas de patrones y 235 tramos de color, o sea la hoja entera. Trae la fuente, el rotulo grande de BOMBER MAN de la fila 2 -casillas 0x22 a 0x2F- y los dibujos del bombero, la bomba, el premio y la puerta. Lo vuelca 0x5088 en los tres tercios
+D 0x5b26 0x5b7c graficos_de_las_letras_del_marcador  Destino 0x0080, o sea la casilla 0x10, con 10 casillas y un solo tramo de color. Son las diez letras de SCORE y BONUS, en ese orden. Lo carga 0x4074 al empezar la partida
+D 0x5b7c 0x5e38 graficos_de_la_partida  Destino 0x0100, o sea la casilla 0x20, con 64 casillas y 92 tramos de color. Son la casilla vacia, los dos puntos, la T y la G de STG, los siete cuadros del enemigo reventando y los ocho de la agonia del bombero, que acaban en un OUT verde. Lo carga 0x407A, y es lo que tapa el rotulo grande de la portada
+
+# ======================================================================
+# LOS GRAFICOS QUE CAMBIAN CON LA FASE
+# ======================================================================
+# 0x4167 usa el numero de fase para elegir DOS bloques de la tabla de 0x419B y
+# cargarlos encima de los que hay: `and 003h` decide si se lee la mitad de
+# arriba de la tabla o la de abajo, y `and 00Ch` cual de las cuatro parejas.
+# Las DIECISEIS palabras de esa tabla caen TODAS dentro de 0x5E38..0x5F9A, y la
+# mas baja es 0x5E38 justo, que es donde empieza el ultimo bloque de datos del
+# cartucho. Eso es lo que dice que ese bloque son los dibujos que la tabla
+# reparte, y no otra cosa.
+#
+# Cada uno de los dieciseis es un bloque del formato de 0x5088 con destino
+# 0x00D0 o 0x0050 y dos casillas dentro, o sea que lo unico que cambia de una
+# fase a otra son unas pocas casillas: la cara del enemigo y poco mas.
+
+D 0x5e38 0x6000 dibujos_que_apunta_0x419B  Los 456 bytes del final del cartucho: los dieciseis bloques a los que apunta la tabla de 0x419B, cada uno con su destino, dos casillas de patrones y sus tramos de color. La primera palabra de la tabla es 0x5E38 exacto, o sea el principio de este bloque
 
 # ======================================================================
 # LO QUE DICE LA PANTALLA DE TITULO, DIBUJADA DESDE LA ROM
@@ -264,6 +2166,7 @@ C 0x4fd7 0x90 bytes, once mas de los que son datos
 #
 # El resto de la pantalla: BOMBER MAN arriba con 200-10 y BONUS ?PTS y EXIT,
 # el mando dibujado con UP/DOWN/LEFT/RIGHT y BOMB sobre un recuadro con SPACE,
-# HUDSON SOFT 1983 a la derecha y HI-SCORE / SCORE en medio.
-
-D 0x4323 0x4442 rotulos_de_la_pantalla_de_titulo  Diecinueve rotulos (fila, columna, texto cerrado por 0x00) y el 0xFF que cierra la tira. Dibujados desde la ROM dicen: BOMBER MAN, 200-10, BONUS ?PTS, EXIT, el mando con UP/DOWN/LEFT/RIGHT y BOMB/SPACE, HUDSON SOFT 1983, HI-SCORE y SCORE, PROGRAMMER:Y.TANAKA y T.SASAGAWA, y PUSH SPACE-KEY OR TORIGER, con la errata incluida
+# HUDSON SOFT 1983 a la derecha y HI-SCORE / SCORE en medio. Y encima de todo
+# eso, que los rotulos no dicen, seis filas de ladrillo con el rotulo GRANDE
+# de BOMBER MAN pintado por 0x42AD y una fila con el bombero, el premio y la
+# puerta de muestra.

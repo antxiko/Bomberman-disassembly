@@ -62,12 +62,15 @@ class Rom:
 
 
 class Vram:
-    """Los 16 KB del VDP y, al lado, los 768 bytes de pantalla que el juego
-    lleva en la RAM."""
+    """Los 16 KB del VDP y, al lado, LAS DOS pantallas que el juego lleva en la
+    RAM: la de 0xE000, que es lo que se ve y se vuelca entera cada cuadro, y la
+    de 0xE38A, que es el tablero -los ladrillos, las llamas, el premio y la
+    puerta- y que se copia encima de la otra al empezar cada cuadro."""
 
     def __init__(self):
         self.v = bytearray(0x4000)
         self.ram = bytearray(0x300)
+        self.tab = bytearray(0x300)
 
     def vuelca(self, a, datos):
         self.v[a:a + len(datos)] = datos
@@ -134,6 +137,64 @@ def carga_los_graficos(rom, v, p):
 def pon_el_cursor(fila, columna):
     """`pon_el_cursor` (0x5128): fila por 32 mas la columna, sobre 0xE000."""
     return fila * 32 + columna
+
+
+def borra_el_tablero(v):
+    """`borra_el_tablero` (0x4F55): los 768 bytes del tablero a casilla vacia."""
+    v.tab[:] = bytes([0x20]) * 0x300
+
+
+def copia_el_tablero_a_la_pantalla(v):
+    """`copia_el_tablero_a_la_pantalla` (0x4F63): un LDIR de 768 bytes, y es lo
+    primero que hace el bucle principal en cada cuadro."""
+    v.ram[:] = v.tab
+
+
+def pinta_cuatro_casillas(pantalla, d, a):
+    """`pinta_cuatro_casillas` (0x4B7B): A, A+1 arriba y A+0x10, A+0x11 abajo.
+    Asi se pinta TODO lo que se mueve en el juego, que ocupa dos por dos."""
+    pantalla[d] = a & 0xFF
+    pantalla[d + 1] = (a + 1) & 0xFF
+    pantalla[d + 0x20] = (a + 0x10) & 0xFF
+    pantalla[d + 0x21] = (a + 0x11) & 0xFF
+
+
+def pinta_cuatro_casillas_iguales(pantalla, d, a):
+    """`pinta_cuatro_casillas_iguales` (0x4B8C): la misma casilla cuatro veces,
+    que es como se pintan el ladrillo, el pilar y el borrado."""
+    for k in (0, 1, 0x20, 0x21):
+        pantalla[d + k] = a & 0xFF
+
+
+def suelta_un_texto(rom, pantalla, d, p):
+    """`suelta_un_texto` (0x513C): casillas hasta el 0x00. Los codigos NO son
+    ASCII, son casillas de la hoja que este cargada."""
+    while rom.b(p):
+        pantalla[d] = rom.b(p)
+        d += 1
+        p += 1
+    return d
+
+
+def pinta_el_tablero(v):
+    """`pinta_el_tablero` (0x4DB7): el marco y los treinta y cinco pilares, y
+    SOLO en la pantalla de arriba. Por eso ni el muro ni el pilar se pueden
+    romper: no estan donde las llamas escriben."""
+    for i in range(0x20):                     # la fila 0
+        v.ram[i] = 0x88
+    for i in range(0x2E0, 0x300):             # y la fila 23
+        v.ram[i] = 0x88
+    d = 0x1F                                  # las dos columnas de los lados,
+    for _ in range(0x17):                     # en parejas que saltan 0x20
+        v.ram[d] = v.ram[d + 1] = 0x88
+        d += 0x20
+    d = 0x63                                  # el primer pilar: fila 3, col 3
+    for _ in range(5):                        # cinco filas de pilares
+        for _ in range(7):                    # siete por fila
+            pinta_cuatro_casillas_iguales(v.ram, d, 0x89)
+            d += 4                            # 0x21 menos 0x1D
+        d += 0x64                             # cuatro filas mas abajo
+    return v
 
 
 def pinta_una_tira_de_rotulos(rom, v, p):

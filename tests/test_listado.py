@@ -10,6 +10,7 @@ que la sujete. Si el listado cambia y deja de ser verdad, esto se pone rojo.
 """
 import os
 import re
+import sys
 import unittest
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +18,18 @@ ASM = os.path.join(RAIZ, "src", "bomberman.asm")
 NOTES = os.path.join(RAIZ, "src", "bomberman.notes")
 ENTRIES = os.path.join(RAIZ, "src", "bomberman.entries")
 NOCODE = os.path.join(RAIZ, "src", "bomberman.nocode")
+DOCS = os.path.join(RAIZ, "docs")
 ORG, FIN = 0x4000, 0x6000
+
+# La direccion que mkasm pega a cada instruccion y a cada fila de datos: un
+# `;`, cuatro cifras hexadecimales y detras un espacio o el final de la linea.
+# Las dos cosas importan: exigir el espacio de detras, y buscarla SOLO en las
+# lineas que empiezan por tabulador. Sin lo segundo, la primera palabra de un
+# comentario de bloque que empiece por letras que ademas son cifras se cuela
+# como direccion -"cada" vale 0xCADA- y el test se pone rojo por una prosa
+# perfectamente correcta. Como la direccion va siempre delante del comentario,
+# en una linea de instruccion gana ella, que es la que esta mas a la izquierda.
+DIRECCION = re.compile(r"; ?([0-9a-f]{4})(?:\s|$)")
 
 # Los demas juegos de la serie. Que el nombre de otro salga en una pagina de
 # este es casi siempre un copia y pega: ya paso con cinco ficheros LICENSE, con
@@ -106,14 +118,16 @@ class TestListado(unittest.TestCase):
     def test_todas_las_instrucciones_llevan_su_direccion(self):
         malas = [ln for ln in lineas_del_asm()
                  if ln.startswith("\t") and not ln.lstrip().startswith(";")
-                 and not re.search(r"; ?[0-9a-f]{4}", ln)
+                 and not DIRECCION.search(ln)
                  and "org" not in ln]
         self.assertEqual(malas, [], "lineas sin direccion: %s" % malas[:3])
 
     def test_las_direcciones_van_en_orden_y_dentro_del_cartucho(self):
         ant = ORG - 1
         for ln in lineas_del_asm():
-            m = re.search(r"; ?([0-9a-f]{4})", ln)
+            if not ln.startswith("\t"):
+                continue
+            m = DIRECCION.search(ln)
             if not m:
                 continue
             a = int(m.group(1), 16)
@@ -343,12 +357,402 @@ class TestNoSeCuelaOtroJuego(unittest.TestCase):
                                 "%s nombra %s, que no existe"
                                 % (os.path.basename(ruta), m))
 
+    def test_ninguna_pagina_nombra_otro_juego_de_la_serie(self):
+        """El andamiaje de la web se copia del proyecto anterior, y por eso
+        llega con el nombre del juego anterior dentro. Ya paso con cinco
+        ficheros LICENSE y con el pie de catorce paginas."""
+        malas = []
+        for carpeta in (DOCS, os.path.join(DOCS, "es")):
+            for fn in sorted(os.listdir(carpeta)):
+                if not fn.endswith((".md", ".html")):
+                    continue
+                t = lee(os.path.join(carpeta, fn))
+                for otro in OTROS_JUEGOS:
+                    if otro in t:
+                        malas.append((fn, otro))
+        for ruta in ("LICENSE", "AVISO-LEGAL.md", "LEGAL-NOTICE.md",
+                     "tools/make_web.py", "tools/md2html.py"):
+            t = lee(os.path.join(RAIZ, ruta))
+            for otro in OTROS_JUEGOS:
+                if otro in t:
+                    malas.append((ruta, otro))
+        self.assertEqual(malas, [], "nombran otro juego: %s" % malas[:5])
+
     def test_los_ficheros_del_repositorio_existen(self):
         for f in ("Makefile", "src/bomberman.asm", "src/bomberman.notes",
                   "src/bomberman.entries", "src/bomberman.nocode",
                   "tools/z80trace.py", "tools/mkasm.py"):
             self.assertTrue(os.path.exists(os.path.join(RAIZ, f)),
                             "falta %s" % f)
+
+
+class TestElTablero(unittest.TestCase):
+    """Quince por once casillas de dos por dos, y donde cae cada cosa."""
+
+    def test_el_tablero_es_de_quince_por_once(self):
+        # `una_casilla_al_azar` (0x4E15) sortea y repite lo que se salga: la
+        # columna por encima de 15 y la fila por encima de 11.
+        self.assertEqual(instruccion(0x4E1A), "cp 00fh")
+        self.assertEqual(instruccion(0x4E24), "cp 00bh")
+
+    def test_una_casilla_de_tablero_son_dos_de_pantalla(self):
+        # `de_casilla_a_pantalla` (0x4E2A): por dos y una mas, en las dos
+        # coordenadas. De ahi salen las columnas 1..29 y las filas 1..21.
+        for d in (0x4E2B, 0x4E30):
+            self.assertEqual(instruccion(d), "add a,a")
+        for d in (0x4E2C, 0x4E31):
+            self.assertEqual(instruccion(d), "add a,001h")
+
+    def test_los_pilares_van_de_cuatro_en_cuatro(self):
+        # `pinta_el_tablero` (0x4DB7): cinco filas de siete pilares, el primero
+        # en 0xE063 -fila 3, columna 3- y luego 0x21 menos 0x1D, o sea cuatro
+        # columnas, y 0x64 para bajar cuatro filas.
+        self.assertEqual(instruccion(0x4DD9), "ld hl,0e063h")
+        self.assertEqual(instruccion(0x4DDC), "ld c,005h")
+        self.assertEqual(instruccion(0x4DE0), "ld b,007h")
+        self.assertEqual(instruccion(0x4DE6), "ld de,0001dh")
+        self.assertEqual(instruccion(0x4DED), "ld de,00064h")
+        self.assertEqual(0xE063 - 0xE000, 3 * 32 + 3)
+
+    def test_las_casillas_prohibidas_rodean_las_esquinas_de_salida(self):
+        # Las ocho parejas de 0x4EDF son las vecinas de las cuatro esquinas por
+        # donde salen los enemigos (0x45C6), para que no salgan tapiados.
+        esquinas = set()
+        for k in range(4):
+            col, fila = trozo(0x45C6 + 2 * k, 2)
+            esquinas.add((fila, col))
+        prohibidas = []
+        p = 0x4EDF
+        while trozo(p, 1)[0] != 0xFF:
+            prohibidas.append(tuple(trozo(p, 2)))
+            p += 2
+        self.assertEqual(len(prohibidas), 8)
+        for fila, col in prohibidas:
+            cerca = [1 for f, c in esquinas
+                     if abs(f - fila) <= 2 and abs(c - col) <= 2]
+            self.assertTrue(cerca, "(%d,%d) no toca ninguna esquina"
+                            % (fila, col))
+
+
+class TestLaExplosion(unittest.TestCase):
+    """El alcance de la llama, que es lo que decide como se juega."""
+
+    def test_la_tabla_son_ocho_tiras_de_cuatro_y_cierra_con_cuatro_0x80(self):
+        pares = [tuple(trozo(0x4F8D + 2 * k, 2)) for k in range(32)]
+        self.assertEqual(trozo(0x4FCD, 4), [0x80] * 4)
+        # Cuatro lados, y de cada uno dos tiras: la fila -o columna- de arriba
+        # y la de abajo, porque la explosion ocupa dos casillas de ancho.
+        def sig(b):
+            return b - 256 if b > 127 else b
+        tiras = [pares[4 * t:4 * t + 4] for t in range(8)]
+        esperado = [
+            [(0, -1), (0, -2), (0, -3), (0, -4)],
+            [(1, -1), (1, -2), (1, -3), (1, -4)],
+            [(0, 2), (0, 3), (0, 4), (0, 5)],
+            [(1, 2), (1, 3), (1, 4), (1, 5)],
+            [(-1, 0), (-2, 0), (-3, 0), (-4, 0)],
+            [(-1, 1), (-2, 1), (-3, 1), (-4, 1)],
+            [(2, 0), (3, 0), (4, 0), (5, 0)],
+            [(2, 1), (3, 1), (4, 1), (5, 1)],
+        ]
+        self.assertEqual([[(sig(f), sig(c)) for f, c in t] for t in tiras],
+                         esperado)
+
+    def test_solo_las_dos_primeras_casillas_de_cada_tira_gastan_ladrillo(self):
+        # La primera y la segunda llaman a 0x4B21, que le suma uno al dibujo
+        # del ladrillo; la tercera y la cuarta a 0x4B5A, que no. Por eso la
+        # explosion alcanza dos casillas de tablero y solo tira los ladrillos
+        # de la primera. Medido tambien en openMSX: tools/omsx_alcance.tcl.
+        self.assertEqual(instruccion(0x4AC0), "call pinta_una_llama_y_gasta_el_ladrillo")
+        self.assertEqual(instruccion(0x4AE1), "call pinta_una_llama_y_gasta_el_ladrillo")
+        self.assertEqual(instruccion(0x4AFE), "call pinta_una_llama_sin_gastar")
+        self.assertEqual(instruccion(0x4B1C), "call pinta_una_llama_sin_gastar")
+        # y 0x4B5A se vuelve SIN escribir cuando lo que hay es un ladrillo
+        self.assertEqual(instruccion(0x4B6D), "cp 08ah")
+        self.assertEqual(instruccion(0x4B71), "cp 080h")
+        self.assertEqual(instruccion(0x4B75), "ret")
+
+    def test_el_pilar_de_la_primera_casilla_no_se_comprueba_nunca(self):
+        # 0x4AC7 es un `jr` incondicional que cae en 0x4ACD, o sea que pasa por
+        # encima del `cp 089h` de 0x4AC9. Se declara como codigo igual, porque
+        # instrucciones son.
+        self.assertEqual(instruccion(0x4AC3), "cp 088h")
+        self.assertEqual(instruccion(0x4AC9), "cp 089h")
+        salto = instruccion(0x4AC7)
+        self.assertTrue(salto.startswith("jr "), salto)
+        self.assertNotIn("nz", salto)
+        self.assertNotIn(",", salto)
+
+
+class TestLaPartida(unittest.TestCase):
+    """Las cuentas del juego, que se publican y por tanto se comprueban."""
+
+    def test_tres_vidas_y_mil_de_bonus(self):
+        self.assertEqual(instruccion(0x4069), "ld a,003h")
+        self.assertEqual(instruccion(0x406B), "ld (0e30fh),a")
+        self.assertEqual(instruccion(0x4080), "ld hl,003e8h")
+
+    def test_los_enemigos_de_las_cinco_primeras_fases(self):
+        # La tabla de 0x4217, dos bytes por fase: cuantos y a que cadencia. La
+        # cuarta fase tiene MENOS enemigos que la tercera.
+        pares = [tuple(trozo(0x4217 + 2 * k, 2)) for k in range(5)]
+        self.assertEqual([n for n, _ in pares], [1, 2, 3, 2, 4])
+        self.assertEqual([c for _, c in pares], [0x10, 0x15, 0x1A, 0x1F, 0x24])
+        # y de la sexta en adelante se juega con la quinta linea
+        self.assertEqual(instruccion(0x41FE), "cp 006h")
+
+    def test_la_bomba_automatica_y_su_aviso_llevan_la_misma_condicion(self):
+        # `pon_una_bomba` deja de pedir el disparo y `pinta_el_aviso` enciende
+        # el rotulo: los dos miran la fase con el mismo `and 003h`.
+        self.assertEqual(instruccion(0x4922), "ld a,(0e310h)")
+        self.assertEqual(instruccion(0x4925), "and 003h")
+        self.assertEqual(instruccion(0x4D37), "ld a,(0e310h)")
+        self.assertEqual(instruccion(0x4D3A), "and 003h")
+
+    def test_el_enemigo_vale_entre_30_y_180_y_la_portada_dice_200_10(self):
+        # 0x48A5: (cuadro de dibujo)*4 + 2, mas un numero al azar de 1 a 4. El
+        # cuadro va de 0 a 3, asi que sale de 3 a 18, y el marcador se ensena
+        # multiplicado por diez.
+        self.assertEqual(instruccion(0x48AC), "add a,a")
+        self.assertEqual(instruccion(0x48AD), "add a,a")
+        self.assertEqual(instruccion(0x48B4), "and 003h")
+        minimo, maximo = 3 * 10, 18 * 10
+        self.assertEqual((minimo, maximo), (30, 180))
+        # y en la portada el rotulo de al lado del bicho dice otra cosa
+        self.assertIn("200-10", lee(NOTES))
+
+    def test_el_marcador_se_ensena_multiplicado_por_diez(self):
+        # `escribe_cinco_cifras_y_un_cero` (0x4F29) saca cinco cifras y pega un
+        # cero detras; al bonus se lo quita quien llama.
+        self.assertEqual(instruccion(0x4F44), "xor a")
+        self.assertEqual(instruccion(0x4D2A), "dec bc")
+        self.assertEqual(instruccion(0x4D2B), "ld a,020h")
+
+    def test_el_bonus_agotado_borra_el_tablero_entero(self):
+        self.assertEqual(instruccion(0x44A4), "call borra_el_tablero")
+        self.assertEqual(instruccion(0x4F5E), "ld (hl),020h")
+
+    def test_reventar_el_premio_o_la_puerta_saca_cuatro_enemigos(self):
+        self.assertEqual(instruccion(0x4552), "ld a,(0e313h)")
+        self.assertEqual(instruccion(0x4555), "add a,004h")
+        self.assertEqual(instruccion(0x455E), "ld d,004h")
+
+
+class TestCodigoQueNadieAlcanza(unittest.TestCase):
+    """Las cuatro piezas muertas del cartucho, cada una con su prueba."""
+
+    def test_nadie_llama_a_las_tres_rutinas_sueltas(self):
+        cuerpo = "\n".join(lineas_del_asm())
+        for dire in (0x4EF0, 0x4F84, 0x50D6):
+            self.assertNotIn("call %05xh" % dire, cuerpo)
+            self.assertNotIn("jp %05xh" % dire, cuerpo)
+            self.assertNotIn("ld hl,%05xh" % dire, cuerpo)
+
+    def test_las_cuatro_estan_declaradas_como_puntos_de_entrada(self):
+        t = lee(ENTRIES)
+        for dire in ("0x4AC9", "0x4EF0", "0x4F84", "0x50D6"):
+            self.assertIn(dire, t)
+
+    def test_los_seis_bytes_que_sobran_no_tocan_nada_que_se_lea(self):
+        # 0x4864..0x4869: un `ld c,a` y cuatro `ld b,..`, y detras nadie vuelve
+        # a leer B ni C antes de escribirlos. Leidos como texto son "OBADD".
+        for dire in range(0x4864, 0x486A):
+            ins = instruccion(dire)
+            self.assertTrue(ins in ("ld c,a", "nop") or ins.startswith("ld b,"),
+                            "0x%04X es %s" % (dire, ins))
+        # el primero que vuelve a tocar BC lo escribe entero
+        self.assertEqual(instruccion(0x4907), "ld bc,00007h")
+
+    def test_los_dos_jr_que_van_al_mismo_sitio(self):
+        # 0x49DB y 0x49DD: el `jr nc` y el `jr` de detras caen los dos en la
+        # misma etiqueta, asi que la comparacion de 0x49D9 no decide nada.
+        self.assertEqual(instruccion(0x49D6), "ld a,(0e30bh)")
+        self.assertEqual(instruccion(0x49D9), "cp 006h")
+        self.assertEqual(instruccion(0x49DB).split(",")[-1],
+                         instruccion(0x49DD).split()[-1])
+
+
+class TestElAzar(unittest.TestCase):
+    """El generador se apoya en el registro R, y eso se puede demostrar."""
+
+    def test_mezcla_el_registro_de_refresco(self):
+        self.assertEqual(instruccion(0x4F08), "ld a,r")
+        self.assertEqual(instruccion(0x4F0A), "xor l")
+
+    def test_el_azar_del_cartucho_se_apoya_en_el_registro_r(self):
+        # Si R avanzara siempre lo mismo entre dos sorteos, la serie de
+        # casillas se cierra en un punado de valores y se repite. En la maquina
+        # no pasa porque entre dos sorteos se ejecutan mas o menos
+        # instrucciones segun cuantas veces haya habido que repetirlo.
+        sys.path.insert(0, os.path.join(RAIZ, "tools"))
+        import pantallas as P
+        for paso in (1, 7, 23, 31):
+            azar = P.AzarDelCartucho(paso=paso)
+            casillas = {P.una_casilla_al_azar(azar) for _ in range(60)}
+            self.assertLess(len(casillas), 8,
+                            "con paso %d salen %d casillas distintas"
+                            % (paso, len(casillas)))
+
+
+class TestLoQueDicenLosTextos(unittest.TestCase):
+    """La fuente no es ASCII, asi que los textos se leen DIBUJANDOLOS."""
+
+    def test_la_firma_de_la_partida_va_sin_espacio_entre_hudson_y_soft(self):
+        # 0x4D9C, con la hoja de casillas de la partida: la B, la O y la U
+        # salen del bloque de 0x5B26, la T del de 0x5B7C y la H, la D, la F, la
+        # A, la M y la I de la pantalla de titulo, que no se sobreescriben.
+        fuente = {0x10: "S", 0x11: "C", 0x12: "O", 0x13: "R", 0x14: "E",
+                  0x15: "B", 0x16: "O", 0x17: "N", 0x18: "U", 0x19: "S",
+                  0x20: " ", 0x21: ":", 0x30: "T", 0x31: "G",
+                  0x92: "H", 0x93: "D", 0x94: "F", 0x95: "A", 0x96: "M",
+                  0x97: "I"}
+        fuente.update({d: str(d) for d in range(10)})
+        p, texto = 0x4D9C, ""
+        while trozo(p, 1)[0]:
+            texto += fuente[trozo(p, 1)[0]]
+            p += 1
+        self.assertEqual(texto, " BOMBERMAN HUDSONSOFT 1983")
+
+    def test_el_aviso_de_bomba_automatica(self):
+        fuente = {0x10: "S", 0x14: "E", 0x15: "B", 0x16: "O", 0x17: "N",
+                  0x18: "U", 0x20: " ", 0x30: "T", 0x31: "G", 0x95: "A",
+                  0x96: "M", 0x97: "I"}
+        p, texto = 0x4D6C, ""
+        while trozo(p, 1)[0]:
+            texto += fuente[trozo(p, 1)[0]]
+            p += 1
+        self.assertEqual(texto, "  BOMB AUTO SETTING STAGE ")
+
+
+class TestLaWeb(unittest.TestCase):
+    """Las cifras que se publican tienen que ser las del listado de AHORA."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(RAIZ, "tools"))
+        import make_web
+        self.w = make_web
+
+    def test_la_suma_de_bytes_da_el_cartucho(self):
+        self.assertEqual(self.w.CODIGO + self.w.DATOS, FIN - ORG)
+
+    def test_los_bytes_de_codigo_son_los_del_listado(self):
+        codigo = 0
+        for ln in lineas_del_asm():
+            m = re.match(r"^; CODIGO 0x([0-9a-f]{4})\.\.0x([0-9a-f]{4})", ln)
+            if m:
+                codigo += int(m.group(2), 16) - int(m.group(1), 16)
+        self.assertEqual(codigo, self.w.CODIGO,
+                         "la portada dice %d bytes de codigo y el listado %d"
+                         % (self.w.CODIGO, codigo))
+
+    def test_la_densidad_declarada_cuadra_con_las_dos_cuentas(self):
+        instrucciones = comentarios = 0
+        for ln in lineas_del_asm():
+            if not ln.startswith("\t") or ln.lstrip().startswith(";"):
+                continue
+            if ln.lstrip().startswith(("defb", "defw", "org")):
+                continue
+            instrucciones += 1
+            if ln.count(";") > 1:
+                comentarios += 1
+        self.assertEqual(instrucciones, self.w.INSTRUCCIONES)
+        self.assertEqual(comentarios, self.w.COMENTARIOS)
+        self.assertEqual("%.1f" % (100.0 * comentarios / instrucciones),
+                         "%.1f" % self.w.DENSIDAD)
+
+    def test_las_catorce_paginas_estan_en_los_dos_idiomas(self):
+        for carpeta, nombres in (
+                (DOCS, ("GETTING-STARTED", "THE-GAME", "THE-CARTRIDGE",
+                        "THE-CODE", "FINDINGS", "IN-THE-EMULATOR",
+                        "OPEN-QUESTIONS")),
+                (os.path.join(DOCS, "es"),
+                 ("EMPEZAR", "EL-JUEGO", "EL-CARTUCHO", "EL-CODIGO",
+                  "HALLAZGOS", "EN-EL-EMULADOR", "PREGUNTAS-ABIERTAS"))):
+            for n in nombres:
+                for ext in (".md", ".html"):
+                    p = os.path.join(carpeta, n + ext)
+                    self.assertTrue(os.path.exists(p), "falta %s" % p)
+            self.assertTrue(os.path.exists(os.path.join(carpeta, "index.html")))
+
+    def test_las_paginas_en_castellano_suben_un_nivel_para_las_imagenes(self):
+        """docs/es vive un nivel mas abajo: las imagenes van a ../imagenes/."""
+        malas = [fn for fn in sorted(os.listdir(os.path.join(DOCS, "es")))
+                 if fn.endswith(".md")
+                 and re.search(r"\]\(imagenes/",
+                               lee(os.path.join(DOCS, "es", fn)))]
+        self.assertEqual(malas, [], "imagenes sin subir un nivel: %s" % malas)
+
+    def test_toda_imagen_citada_existe(self):
+        faltan = []
+        for carpeta in (DOCS, os.path.join(DOCS, "es")):
+            for fn in sorted(os.listdir(carpeta)):
+                if not fn.endswith(".md"):
+                    continue
+                for ruta in re.findall(r"!\[[^\]]*\]\(([^)]+)\)",
+                                       lee(os.path.join(carpeta, fn))):
+                    p = os.path.normpath(os.path.join(carpeta, ruta))
+                    if not os.path.exists(p):
+                        faltan.append((fn, ruta))
+        self.assertEqual(faltan, [], "imagenes que no existen: %s" % faltan[:5])
+
+    def test_las_catorce_laminas_estan_dibujadas(self):
+        """Las dos pantallas, el rotulo, las cuatro hojas de casillas y las
+        siete de lo que se mueve."""
+        img = os.path.join(DOCS, "imagenes")
+        self.assertTrue(os.path.isdir(img),
+                        "no hay docs/imagenes: pasa make imagenes")
+        pngs = sorted(f for f in os.listdir(img) if f.endswith(".png"))
+        self.assertEqual(len(pngs), 14, "hay %d laminas y son 14" % len(pngs))
+        for n in ("titulo.png", "partida.png", "rotulo.png", "bombero.png",
+                  "agonia.png", "enemigos.png", "bombas.png", "llamas.png"):
+            self.assertIn(n, pngs)
+        for f in pngs:
+            self.assertGreater(os.path.getsize(os.path.join(img, f)), 500,
+                               "%s pesa demasiado poco para ser un dibujo" % f)
+
+    def test_toda_lamina_dibujada_se_publica_en_alguna_pagina(self):
+        """Una lamina que no sale en ninguna parte es trabajo tirado, y una
+        pagina que cita una que no existe es una imagen rota."""
+        img = os.path.join(DOCS, "imagenes")
+        citadas = set()
+        for carpeta in (DOCS, os.path.join(DOCS, "es")):
+            for fn in sorted(os.listdir(carpeta)):
+                if fn.endswith(".md"):
+                    citadas |= {os.path.basename(r) for r in re.findall(
+                        r"!\[[^\]]*\]\(([^)]+)\)",
+                        lee(os.path.join(carpeta, fn)))}
+        citadas |= {f for f, _, _ in self.w.GALERIA}
+        citadas.add("rotulo.png")
+        sueltas = sorted(set(os.listdir(img)) - citadas)
+        self.assertEqual(sueltas, [], "laminas que no se publican: %s" % sueltas)
+
+    def test_ninguna_pagina_dice_que_hay_capturas(self):
+        for carpeta in (DOCS, os.path.join(DOCS, "es")):
+            for fn in sorted(os.listdir(carpeta)):
+                if not fn.endswith(".md"):
+                    continue
+                t = lee(os.path.join(carpeta, fn)).lower()
+                for frase in ("captura de pantalla del emulador",
+                              "screenshot from the emulator"):
+                    self.assertNotIn(frase, t, "%s dice %r" % (fn, frase))
+
+
+class TestLaDensidad(unittest.TestCase):
+    """El liston de la serie, medido sobre el listado que se publica."""
+
+    def test_todas_las_instrucciones_tienen_algo_que_decir(self):
+        instrucciones = comentarios = 0
+        for ln in lineas_del_asm():
+            if not ln.startswith("\t") or ln.lstrip().startswith(";"):
+                continue
+            if ln.lstrip().startswith(("defb", "defw", "org")):
+                continue
+            instrucciones += 1
+            if ln.count(";") > 1:
+                comentarios += 1
+        self.assertGreater(instrucciones, 1500)
+        self.assertGreaterEqual(100 * comentarios / instrucciones, 22,
+                                "la densidad ha bajado del liston de la serie")
 
 
 if __name__ == "__main__":

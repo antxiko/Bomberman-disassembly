@@ -1,0 +1,162 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>El código — Bomber Man (Hudson Soft, 1983)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Portada</a><a href="EMPEZAR.html">Empezar</a><a href="EL-JUEGO.html">El juego</a><a href="EL-CARTUCHO.html">El cartucho</a><a href="EL-CODIGO.html" style=color:var(--tinta)>El código</a><a href="HALLAZGOS.html">Hallazgos</a><a href="EN-EL-EMULADOR.html">En el emulador</a><a href="PREGUNTAS-ABIERTAS.html">Preguntas abiertas</a><a href="../THE-CODE.html" style="margin-left:auto;color:var(--oro)">English</a></nav>
+<h1 id="el-codigo">El código</h1>
+<p>3557 bytes de código y 4635 de datos, 200 rutinas, y una idea que lo explica todo: <b>el juego no tiene una estructura de datos del mapa</b>. Lee el número de casilla.</p>
+<h2 id="dos-pantallas-en-la-ram-no-una">Dos pantallas en la RAM, no una</h2>
+<table><tr><th>dónde</th><th>qué</th></tr><tr><td><code>0xE000</code>–<code>0xE2FF</code></td><td><b>la pantalla</b>: lo que se ve. Cada cuadro se vuelca entera a la VRAM con un LDIRVM y se deja en blanco</td></tr><tr><td><code>0xE38A</code>–<code>0xE689</code></td><td><b>el tablero</b>: lo que permanece. Los ladrillos, las llamas mientras duran, el premio y la puerta cuando ya están descubiertos</td></tr></table>
+<p>Las dos tienen la misma forma —24 filas de 32 casillas— y la misma aritmética de cursor: <code>pon_el_cursor</code> (<code>0x5128</code>) da la dirección en la pantalla y <code>pon_el_cursor_en_el_tablero</code> (<code>0x4F6F</code>) la misma casilla en el tablero, sumándole <code>0x38A</code>.</p>
+<p>De ahí sale que <b>el muro y los pilares no se pueden romper</b>: sólo están en la pantalla, los repinta <code>pinta_el_tablero</code> (<code>0x4DB7</code>) cada cuadro, y no están donde las llamas escriben. Y los ladrillos sólo están en el tablero.</p>
+<h2 id="el-significado-de-cada-casilla">El significado de cada casilla</h2>
+<table><tr><th>casillas</th><th>qué son</th></tr><tr><td><code>0x00</code>–<code>0x09</code></td><td>las cifras</td></tr><tr><td><code>0x0A</code>, <code>0x0E</code></td><td>el premio y la puerta, de dos por dos</td></tr><tr><td><code>0x10</code>–<code>0x19</code></td><td>las letras de SCORE y BONUS</td></tr><tr><td><code>0x20</code></td><td>casilla vacía</td></tr><tr><td><code>0x22</code>–<code>0x2F</code></td><td>el enemigo reventando, siete cuadros</td></tr><tr><td><code>0x60</code>–<code>0x7B</code></td><td>la bomba: cuatro tamaños por dos de parpadeo</td></tr><tr><td><code>0x80</code>–<code>0x87</code></td><td>el ladrillo desmoronándose, ocho cuadros</td></tr><tr><td><code>0x88</code>, <code>0x89</code></td><td>el muro del borde y el pilar fijo</td></tr><tr><td><code>0x8A</code>–<code>0x8D</code></td><td>el bombero quieto</td></tr><tr><td><code>0xA0</code>–<code>0xBF</code></td><td>el bombero andando: cuatro sentidos por dos pasos</td></tr><tr><td><code>0xC0</code>–<code>0xCF</code></td><td>el enemigo vivo, cuatro cuadros</td></tr><tr><td><code>0xE0</code>–<code>0xEF</code></td><td>la llama</td></tr></table>
+<p>Y de ahí salen las tres comparaciones que se repiten por todo el listado:</p>
+<ul><li><code>cp 020h</code> — «está libre»</li><li><code>cp 0e0h</code> — «hay una llama»</li><li><code>cp 0c0h</code> — «hay algo que mata», que vale para las llamas <b>y</b> para los bichos porque están puestos seguidos a propósito</li></ul>
+<h2 id="el-bucle-principal-es-el-indice-del-juego">El bucle principal es el índice del juego</h2>
+<p><code>bucle_principal</code> (<code>0x40CC</code>): veinte llamadas seguidas, una por sistema, en el orden en que se pintan encima unas de otras.</p>
+<pre><code>cierra_el_cuadro                 los contadores, el volcado y el sonido
+copia_el_tablero_a_la_pantalla   el tablero encima de la pantalla
+pinta_el_tablero                 el marco y los pilares
+avanzan_las_bombas               la cuenta atrás
+pinta_las_bombas_y_las_llamas
+pon_una_bomba                    lee el disparo
+avanza_el_bombero                anda, o se muere
+mueve_los_enemigos
+pinta_el_premio / pinta_la_puerta
+pinta_los_enemigos
+descubre_el_premio / descubre_la_puerta
+pinta_al_bombero                 encima de todo
+saca_los_enemigos_de_castigo
+pisa_la_puerta_o_el_premio
+descuenta_el_bonus
+pinta_el_marcador
+pinta_el_aviso_de_bomba_automatica</code></pre>
+<p>Y tres puertas de salida, que son las tres formas de acabar una vida: muerto (<code>0xE37B</code>), puerta pisada (<code>0xE316</code>) o fase limpia (<code>0xE318</code>).</p>
+<p><b>El orden es la lógica.</b> Cada cosa deja su rastro en las casillas para que la siguiente lo lea, y por eso el bombero se pinta <b>antes</b> de mirar si le han matado: al escribirse encima de la casilla, lee lo que había.</p>
+<p>Hay dos versiones recortadas del mismo bucle: <code>un_cuadro_sin_mando</code> (<code>0x4231</code>), sin lo que atiende al jugador, y <code>un_cuadro_de_adorno</code> (<code>0x4253</code>), sin enemigos. Son las que se usan en las celebraciones y en el fin de partida: todo se sigue viendo moverse, pero ya no se manda.</p>
+<h2 id="todo-mide-dos-por-dos">Todo mide dos por dos</h2>
+<p><code>pinta_cuatro_casillas</code> (<code>0x4B7B</code>) escribe A, A+1 arriba y A+<code>0x10</code>, A+<code>0x11</code> abajo. El <code>0x1F</code> del medio es 32 menos el <code>inc bc</code> que ya se hizo, y el <code>0x0F</code>, <code>0x10</code> menos el <code>inc a</code>.</p>
+<p>Así se pinta el bombero, el bicho, la bomba, la llama, el premio, la puerta, el ladrillo y el pilar: <b>todo</b>. Y el tablero de verdad, en casillas de dos por dos, son 15 columnas por 11 filas dentro de una pantalla de 32 por 24.</p>
+<h2 id="como-se-siembra-una-fase">Cómo se siembra una fase</h2>
+<p><code>siembra_la_fase</code> (<code>0x4E35</code>) no guarda ningún mapa: escribe los ladrillos en el tablero y ahí se quedan. Lo único que apunta aparte es <b>dónde cayó el primero</b> —que esconde el premio— y <b>dónde cayó el último</b> —que esconde la puerta—, porque <code>0x4EB1</code> sólo guarda el premio la primera vez y la puerta se apunta siempre.</p>
+<p>Las reglas del sorteo, en orden:</p>
+<ol><li>a dos o más casillas del sitio del bombero</li><li>de las dos coordenadas, <b>una impar y la otra par</b>. Con las dos impares caería encima de un pilar; con las dos pares, en las casillas que el juego deja siempre libres</li><li>ninguna de las ocho de la tabla de <code>0x4EDF</code>, que son las vecinas de las cuatro esquinas por donde salen los enemigos</li></ol>
+<p>No se mira si ya hay un ladrillo ahí, así que dos pueden caer en la misma casilla y salir menos de treinta y cinco. En el volcado del emulador salieron <b>29</b>.</p>
+<h2 id="el-contador-con-tope">El contador con tope</h2>
+<p>Es como se mide <b>todo</b> el tiempo del juego. <code>avanza_un_contador</code> (<code>0x46BE</code>) recibe un puntero a una pareja (cuenta, tope): suma uno y al llegar al tope vuelve a cero. Hay seis parejas seguidas desde <code>0xE36F</code>, y quien quiere hacer algo «de vez en cuando» mira si su cuenta vale cero.</p>
+<table><tr><th>pareja</th><th>tope</th><th>qué mide</th></tr><tr><td><code>0xE36F</code></td><td>4</td><td>el paso del bombero</td></tr><tr><td><code>0xE371</code></td><td>4</td><td>su agonía</td></tr><tr><td><code>0xE373</code></td><td>7</td><td>el enemigo reventando</td></tr><tr><td><code>0xE375</code></td><td>5</td><td>el paso de los enemigos</td></tr><tr><td><code>0xE377</code></td><td>3</td><td>la bomba y el ladrillo desmoronándose</td></tr><tr><td><code>0xE379</code></td><td>50</td><td>el bonus</td></tr></table>
+<p>Los seis topes salen de la tabla de valores de partida de <code>0x4FDD</code> y <b>no se tocan nunca más</b>. Ahí está la velocidad del juego entero.</p>
+<h2 id="las-dos-listas">Las dos listas</h2>
+<p><b>Enemigos</b> en <code>0xE31C</code>: ocho fichas de siete bytes, cerradas por el <code>0xFF</code> de <code>0xE354</code>.</p>
+<pre><code>+0  qué hace: 0 libre, 1 vivo, 2..9 reventando, 0xFF fin de la lista
++1  columna       +2  fila
++3  cuadro de dibujo, que cuenta 3, 2, 1, 0 y vuelta
++4  cuenta atrás hasta el cuadro siguiente
++5  hacia dónde va: 0 izquierda, 1 derecha, 2 arriba, 3 abajo
++6  sin usar</code></pre>
+<p>El <code>+3</code> hace dos cosas a la vez: elige el dibujo y decide el comportamiento. Cuando vale cero el enemigo <b>va a por el bombero</b>, y ese es justo el cuadro rojo.</p>
+<p><b>Bombas</b> en <code>0xE359</code>: cinco fichas de cuatro bytes.</p>
+<pre><code>+0  0 libre, 1..4 la mecha, 5..12 la explosión, 13 apagar
++1  columna       +2  fila       +3  cuenta hasta el cuadro siguiente</code></pre>
+<p>No hay ningún límite más: el juego no lleva «cuántas bombas te quedan».</p>
+<h2 id="la-explosion-y-el-bucle-desenrollado">La explosión, y el bucle desenrollado</h2>
+<p><code>pinta_la_explosion</code> (<code>0x4A8C</code>) pinta el centro sin preguntar y recorre los cuatro brazos con la tabla de <code>0x4F8D</code>: <b>ocho tiras de cuatro casillas</b>, una por lado y por cada una de las dos filas —o columnas— que ocupa. Cuatro casillas de pantalla por lado son <b>dos casillas de tablero</b>.</p>
+<p>El bucle está desenrollado a propósito, con una copia por casilla, porque cada una se para de una forma distinta:</p>
+<table><tr><th>casilla</th><th>se para con</th><th>qué rutina usa</th></tr><tr><td>1ª</td><td>sólo el muro</td><td><code>pinta_una_llama_y_gasta_el_ladrillo</code></td></tr><tr><td>2ª</td><td>ladrillo, muro o pilar</td><td><code>pinta_una_llama_y_gasta_el_ladrillo</code></td></tr><tr><td>3ª</td><td>ladrillo, muro o pilar</td><td><code>pinta_una_llama_sin_gastar</code></td></tr><tr><td>4ª</td><td>ladrillo, muro o pilar</td><td><code>pinta_una_llama_sin_gastar</code></td></tr></table>
+<p>La diferencia que importa: las dos primeras <b>gastan</b> el ladrillo —le suman uno al dibujo cada tres cuadros hasta hacerlo desaparecer— y las dos últimas se vuelven <b>sin escribir</b> si lo que hay es un ladrillo. Como las dos primeras son la casilla de tablero pegada a la bomba y las dos últimas la siguiente, el resultado es que la explosión <b>alcanza dos casillas pero sólo tira los ladrillos de la primera</b>.</p>
+<p>Está medido en la máquina, no deducido: <a href="EN-EL-EMULADOR.html">En el emulador</a>.</p>
+<h2 id="un-truco-de-registros-que-merece-la-pena">Un truco de registros que merece la pena</h2>
+<p><code>si_toca_gasta_el_ladrillo</code> (<code>0x4B4E</code>) tiene que sumarle uno a A y no le queda ni un registro libre. Lo resuelve así:</p>
+<pre><code>push af           A a la pila
+ex (sp),hl        y de la pila a H, que es donde va la A
+ld a,(0e377h)     la cuenta de tres cuadros
+or a
+jr nz,...
+inc h             un cuadro más de desmoronarse
+ex (sp),hl        H otra vez a la pila
+pop af            y de ahí a A, ya cambiada</code></pre>
+<h2 id="el-azar">El azar</h2>
+<p><code>numero_al_azar</code> (<code>0x4EF9</code>) realimenta <code>(0xE384)</code> con dieciséis bits y le mezcla el <b>registro R</b> del Z80. Devuelve el byte de abajo.</p>
+<p>Esa mezcla no es un adorno: si R avanzara siempre lo mismo entre dos sorteos, la serie de casillas se cierra en tres a cinco valores y se repite. Lo comprueba un test del repositorio con cuatro pasos distintos. En la máquina no pasa porque entre dos sorteos se ejecutan más o menos instrucciones según cuántas veces haya habido que repetir el sorteo.</p>
+<footer><p><em>Bomber Man</em> lo publico Hudson Soft para MSX en 1983, en un cartucho de 8 KB. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion, y la imagen del cartucho no se distribuye.</p></footer></div>

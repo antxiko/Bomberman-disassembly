@@ -1,0 +1,150 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hallazgos — Bomber Man (Hudson Soft, 1983)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Portada</a><a href="EMPEZAR.html">Empezar</a><a href="EL-JUEGO.html">El juego</a><a href="EL-CARTUCHO.html">El cartucho</a><a href="EL-CODIGO.html">El código</a><a href="HALLAZGOS.html" style=color:var(--tinta)>Hallazgos</a><a href="EN-EL-EMULADOR.html">En el emulador</a><a href="PREGUNTAS-ABIERTAS.html">Preguntas abiertas</a><a href="../FINDINGS.html" style="margin-left:auto;color:var(--oro)">English</a></nav>
+<h1 id="hallazgos">Hallazgos</h1>
+<p>Lo que apareció al desmontar los ocho kilobytes, con la dirección al lado para que se pueda comprobar.</p>
+<h2 id="la-cabecera-del-cartucho-es-codigo">La cabecera del cartucho es código</h2>
+<p>INIT vale <code>0x4004</code>, que es exactamente donde el formato del MSX coloca STATEMENT, DEVICE y TEXT. Esos tres campos y los seis bytes reservados <b>no son campos</b>: son <code>ld sp,0F000h</code> y las tres llamadas del arranque.</p>
+<p>Sólo los cuatro primeros bytes del cartucho son cabecera de verdad.</p>
+<h2 id="dos-programadores-y-una-errata-de-hudson">Dos programadores, y una errata de Hudson</h2>
+<p>La pantalla de título, dibujada desde la ROM, dice en la fila 20 <b>PROGRAMMER:Y.TANAKA</b> y en la 21 <b>T.SASAGAWA</b>.</p>
+<p>Y la última línea dice:</p>
+<pre><code>PUSH SPACE-KEY OR TORIGER</code></pre>
+<p>TORIGER, no TRIGGER.</p>
+<p>Ninguna de las dos cosas se puede leer mirando los bytes. La fuente del cartucho no es ASCII del todo —el <code>0x21</code>, que sería un <code>!</code>, aquí son los dos puntos— y encima <b>cambia a mitad de juego</b>: los mismos códigos que en la portada son las letras del rótulo grande, en la partida son los bichos. La única forma de citar un texto de este cartucho es dibujarlo.</p>
+<h2 id="cada-cuatro-fases-el-juego-pone-las-bombas-por-ti">Cada cuatro fases el juego pone las bombas por ti</h2>
+<p><code>pon_una_bomba</code> (<code>0x4922</code>) mira el número de fase con un <code>and 003h</code>: si es múltiplo de cuatro, <b>no pide el disparo</b>. Y <code>pinta_el_aviso_de_bomba_automatica</code> (<code>0x4D3A</code>) enciende un rótulo con exactamente la misma condición, parpadeando dieciséis cuadros sí y ocho no:</p>
+<pre><code>  BOMB AUTO SETTING STAGE</code></pre>
+<p>Un modo de juego entero en dos instrucciones. Y encaja con la tabla de enemigos: la fase 4, la primera de bomba automática, tiene <b>menos</b> enemigos que la 3.</p>
+<h2 id="la-explosion-alcanza-dos-casillas-y-solo-tira-los-ladrillos-de-una">La explosión alcanza dos casillas y sólo tira los ladrillos de una</h2>
+<p>Cada brazo son cuatro casillas de pantalla, o sea dos de tablero. Pero el bucle de <code>0x4AAC</code> está desenrollado con una copia por casilla, y las dos primeras llaman a <code>pinta_una_llama_y_gasta_el_ladrillo</code> (<code>0x4B21</code>) mientras que la tercera y la cuarta llaman a <code>pinta_una_llama_sin_gastar</code> (<code>0x4B5A</code>), que se vuelve <b>sin escribir</b> si lo que hay es un ladrillo.</p>
+<p><b>Medido en openMSX</b>, no deducido. Dos bombas escritas a mano en la lista de <code>0xE359</code>: una con ladrillo pegado a la derecha y abajo, otra con la casilla de al lado libre y el ladrillo a dos.</p>
+<pre><code>bomba A: ladrillo a 1 casilla  por la derecha   en ( 5, 0) -&gt; CAE
+bomba A: ladrillo a 1 casilla  por la abajo     en ( 4, 1) -&gt; CAE
+bomba B: ladrillo a 2 casillas por la izquierda en (11, 0) -&gt; SIGUE EN PIE</code></pre>
+<h2 id="el-bicho-se-pone-rojo-cuando-va-a-por-ti">El bicho se pone rojo cuando va a por ti</h2>
+<p>El byte <code>+3</code> de la ficha del enemigo hace dos cosas: elige el dibujo (<code>0xC0 + cuadro*4</code>) y decide el comportamiento. Cuando vale cero, el enemigo <b>persigue al bombero</b> (<code>0x477B</code>); el resto del tiempo anda a lo suyo y cambia de idea al azar.</p>
+<p>Y cero es justo el cuadro rojo. Los otros tres son morados.</p>
+<h2 id="ni-un-sprite-en-todo-el-cartucho">Ni un sprite en todo el cartucho</h2>
+<p><code>monta_el_vdp</code> (<code>0x507C</code>) escribe un <code>0xD0</code> en el primer atributo de sprite —la marca de «no hay más»— y <b>no vuelve a tocar la lista nunca</b>. Los registros 5 y 6 del VDP se declaran y no se usan.</p>
+<p>Todo lo que se mueve son casillas de la tabla de nombres, y todo ocupa dos por dos. Eso explica la arquitectura entera: dos pantallas de 768 bytes en la RAM, y el número de casilla haciendo de mapa.</p>
+<h2 id="el-azar-se-apoya-en-el-registro-de-refresco">El azar se apoya en el registro de refresco</h2>
+<p><code>numero_al_azar</code> (<code>0x4EF9</code>) le mezcla a la semilla el <b>registro R</b> del Z80. Si R avanzara siempre lo mismo entre dos sorteos, la serie de casillas se cierra en <b>tres a cinco valores</b> y se repite; lo comprueba <code>test_el_azar_del_cartucho_se_apoya_en_el_registro_r</code> con cuatro pasos distintos.</p>
+<p>En la máquina no pasa porque entre dos sorteos se ejecutan más o menos instrucciones según cuántas veces haya habido que repetir el sorteo. La consecuencia: <b>el reparto de una fase no se puede reproducir desde fuera</b>.</p>
+<h2 id="cuatro-trozos-de-codigo-a-los-que-no-llega-nadie">Cuatro trozos de código a los que no llega nadie</h2>
+<p>Tres rutinas enteras, sin un solo <code>call</code> que las nombre en los 8 KB:</p>
+<table><tr><th>dirección</th><th>qué hace</th></tr><tr><td><code>0x4EF0</code></td><td>borra una casilla del tablero. Es la versión suelta de lo que hace <code>0x4A7A</code> dentro de otra rutina</td></tr><tr><td><code>0x4F84</code></td><td>una espera de <code>0x400</code> vueltas, hermana pequeña de la de <code>0x4F7B</code></td></tr><tr><td><code>0x50D6</code></td><td>escribe el registro 7 del VDP, que sólo se pone una vez desde la tabla de arranque</td></tr></table>
+<p>Y una cuarta: el <code>cp 089h</code> de <code>0x4AC9</code>, que comprobaría el pilar en la primera casilla de cada brazo de la explosión. Por encima pasa un <code>jr</code> incondicional.</p>
+<p>Ese último <b>no cambia nada</b>, y por eso nadie lo arregló: la casilla siguiente da con la otra mitad del mismo pilar y la llama se para ahí igual. Se declaran como código, porque instrucciones son.</p>
+<h2 id="seis-bytes-que-se-ejecutan-y-no-hacen-nada">Seis bytes que se ejecutan y no hacen nada</h2>
+<p>En <code>0x4864</code>, dentro de <code>pinta_los_enemigos</code>:</p>
+<pre><code>4864  4F  ld c,a
+4865  42  ld b,d
+4866  41  ld b,c
+4867  44  ld b,h
+4868  44  ld b,h
+4869  00  nop</code></pre>
+<p>Nadie vuelve a leer B ni C antes de escribirlos: el primero que los toca es un <code>ld bc,00007h</code>. Leídos como texto, y con la propia fuente del cartucho, dicen <b>OBADD</b>. Es lo único de los 8 KB que no sirve ni de dato ni de instrucción.</p>
+<p>Hay otro resto parecido en <code>0x49D6</code>: un <code>cp 006h</code> cuyas dos salidas van a la misma etiqueta.</p>
+<h2 id="reventar-la-puerta-sale-caro">Reventar la puerta sale caro</h2>
+<p>Si una llama alcanza el premio o la puerta, <code>pinta_una_casilla_del_premio</code> (<code>0x461E</code>) apunta el sitio y pide castigo. <code>saca_los_enemigos_de_castigo</code> (<code>0x453B</code>) espera a que esa casilla quede limpia y saca <b>cuatro enemigos más</b> por ahí.</p>
+<p>La puerta se vuelve a descubrir sola; el premio se pierde.</p>
+<h2 id="y-quedarse-sin-bonus-mas-caro-todavia">Y quedarse sin bonus, más caro todavía</h2>
+<p>Si el bonus llega a cero, <code>se_agoto_el_bonus</code> (<code>0x449F</code>) llama a <code>borra_el_tablero</code> (<code>0x4F55</code>) y <b>borra los 768 bytes de golpe</b>: los treinta y cinco ladrillos, el premio y la puerta. Y deja las dos banderas de «ya está descubierto» puestas a uno, así que ya no se vuelven a buscar.</p>
+<p>La fase se queda sin salida y sólo se puede terminar matándolos a todos.</p>
+<h2 id="la-bomba-de-la-portada-sale-en-el-ultimo-cuadro-de-la-mecha">La bomba de la portada sale en el último cuadro de la mecha</h2>
+<p><code>pon_la_bomba_del_titulo</code> (<code>0x4442</code>) la pone en el estado 1. Pero al pintarla, <code>mira_si_la_alcanza_otra_llama</code> (<code>0x4A6D</code>) mira lo que hay debajo <b>en el tablero</b>, y al entrar en la portada el tablero no se ha borrado: son bytes de la RAM sin estrenar.</p>
+<p>En el volcado de openMSX valen <code>0xFF</code>, o sea más de <code>0xE0</code>, que es lo que <code>0x4A6D</code> toma por una llama. Así que le mete el estado 4 y la cuenta 6 —la ficha volcada dice exactamente <code>04 0E 0A 06</code>, que es lo que escriben <code>0x4A71</code> y <code>0x4A75</code>— y ahí se queda, porque en la portada nadie llama a <code>avanzan_las_bombas</code>.</p>
+<p>Es la reacción en cadena de las bombas, disparada por memoria sin inicializar.</p>
+<h2 id="el-ldir-de-los-valores-de-partida-copia-de-mas">El <code>ldir</code> de los valores de partida copia de más</h2>
+<p><code>pon_los_valores_de_partida</code> (<code>0x4FD1</code>) vuelca <code>0x90</code> bytes desde <code>0x4FDD</code> a <code>0xE305</code>. Pero <code>0x4FDD + 0x90 = 0x506D</code>, y el código de <code>monta_el_vdp</code> empieza en <code>0x5062</code>: los once últimos bytes que llegan a la RAM son <b>las primeras instrucciones de esa rutina</b>, no datos.</p>
+<p>No molesta a nadie —caen en variables que se escriben antes de leerse— pero el bloque de datos se declara sólo hasta donde es dato de verdad.</p>
+<h2 id="un-dec-bc-que-hace-encajar-dos-rotulos">Un <code>dec bc</code> que hace encajar dos rótulos</h2>
+<p>El marcador de arriba ocupa la fila 0 entera:</p>
+<pre><code>SCORE:nnnnnn BONUS:nnnnn STG:nn</code></pre>
+<p><code>escribe_cinco_cifras_y_un_cero</code> saca cinco cifras y pega un cero detrás, así que el marcador se enseña multiplicado por diez. Al bonus ese cero le sobra, y <code>0x4D2A</code> lo borra con un <code>dec bc</code> y un espacio. En ese hueco encaja <b>el espacio con el que empieza <code>&quot; STG:&quot;</code></b>, que se escribe antes a propósito.</p>
+<p>Abajo pasa lo mismo al revés: la firma <code> BOMBERMAN HUDSONSOFT 1983</code> ocupa de la columna 1 a la 26 y el rótulo de las vidas empieza en la 26, así que el <code>3</code> de 1983 se come el primer espacio del rótulo. Pintarlo al revés pierde el <code>3</code>.</p>
+<p>Y esa firma va <b>sin espacio entre HUDSON y SOFT</b>, al contrario que la de la portada.</p>
+<footer><p><em>Bomber Man</em> lo publico Hudson Soft para MSX en 1983, en un cartucho de 8 KB. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion, y la imagen del cartucho no se distribuye.</p></footer></div>
