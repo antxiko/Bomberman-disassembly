@@ -30,14 +30,27 @@ cartucho, dicen `OBADD`. Que sean cinco letras y un cero es sugerente pero no
 prueba nada: pueden ser un resto de una compilación anterior, una cadena que
 alguien empezó y no terminó, o simple casualidad. **No sabemos qué eran.**
 
-## Qué son dos de los ocho premios
+## Los ocho premios, ya identificados
 
-Los ocho están dibujados desde la ROM y seis se reconocen sin discusión: un
-helicóptero, un saco de dinero con el símbolo del dólar, un velocípedo, un
-carruaje, una taza humeante y un instrumento de cuerda. Los otros dos —uno
-rojo y vertical con huecos blancos, y uno blanco con forma de rombo con
-cola— **no sabemos qué son**. Son 16 por 16 píxeles en dos colores; puede que
-no haya respuesta.
+*Cerrado el 2026-09-09.* Aquí se decía que dos de los ocho no se sabía qué eran,
+y además dos de los que se daban por seguros estaban mal leídos. Lo corrigió
+**theNestruo** ([issue #1](https://github.com/antxiko/Bomberman-disassembly/issues/1)),
+y con su lectura delante los ocho se ven:
+
+| | premio |
+|---|---|
+| 1 | un **telescopio** sobre su trípode rojo —se había leído como un helicóptero— |
+| 2 | un saco de dinero con el símbolo del dólar |
+| 3 | un velocípedo |
+| 4 | un carruaje |
+| 5 | una taza humeante |
+| 6 | una **copa de cóctel** —se había leído como un instrumento de cuerda— |
+| 7 | una **lata roja de refresco**, con las letras en negro |
+| 8 | un **paquete de tabaco**, visto en escorzo y con la solapa levantada |
+
+La forma de los dos últimos se comprueba dibujándolos de la ROM y ampliándolos;
+lo que dicen sus letras —«Coke» en la lata y un «7» en el paquete— es lectura de
+theNestruo, que conoce el juego, y aquí se recoge con su crédito.
 
 ## Si el `cp 089h` muerto de `0x4AC9` llegó a ejecutarse alguna vez
 

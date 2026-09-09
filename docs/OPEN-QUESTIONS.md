@@ -32,13 +32,27 @@ They run and do nothing; read as text, in the cartridge's own font, they say
 they could be a leftover from an earlier build, a string someone started and
 never finished, or plain coincidence. **We do not know what they were.**
 
-## What two of the eight prizes are
+## The eight prizes, now identified
 
-All eight are drawn from the ROM and six are unmistakable: a helicopter, a
-money bag with a dollar sign, a penny-farthing, a carriage, a steaming cup and
-a stringed instrument. The other two — one red and vertical with white gaps,
-and one white, diamond-shaped with a tail — **we do not know what they are**.
-They are 16 by 16 pixels in two colours; there may be no answer.
+*Closed on 2026-09-09.* This used to say that two of the eight were unknown —
+and on top of that, two of the ones taken for granted were misread. **theNestruo**
+put it right ([issue #1](https://github.com/antxiko/Bomberman-disassembly/issues/1)),
+and with his reading in hand all eight are legible:
+
+| | prize |
+|---|---|
+| 1 | a **telescope** on its red tripod — it had been read as a helicopter |
+| 2 | a money bag with a dollar sign |
+| 3 | a penny-farthing |
+| 4 | a carriage |
+| 5 | a steaming cup |
+| 6 | a **cocktail glass** — it had been read as a stringed instrument |
+| 7 | a **red soda can**, lettered in black |
+| 8 | a **cigarette pack**, seen at an angle with its lid up |
+
+The shape of the last two is checked by drawing them from the ROM and blowing
+them up; what their lettering says — "Coke" on the can and a "7" on the pack —
+is theNestruo's reading, from knowing the game, and is credited to him here.
 
 ## Whether the dead `cp 089h` at `0x4AC9` ever ran
 
